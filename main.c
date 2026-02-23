@@ -217,11 +217,27 @@ void help() {
     printf( "[F4], DUMP, HEX\x1b[%d;32HHexdump file\n", line++ );
     printf( "[F5], COPY, CP\x1b[%d;32HCopy file(s)\n", line++ );
     printf( "[F8], DEL, ERA, RM\x1b[%d;32HDelete file(s)\n", line++ );
-    printf( "[F9], [ESC][ESC], QUIT, EXIT\x1b[%d;32HDelete file(s)\n", line++ );
+    printf( "[F9], [ESC][ESC], QUIT, EXIT\x1b[%d;32HExit\n", line++ );
     wait_key_hw();
     refresh_ui( PAN_BOTH );
 }
 
+typedef void (*command_func_t)(void);
+
+typedef struct {
+    const char *keyword;
+    command_func_t func;
+} command_t;
+
+// parse zmc cmd line and get a fkt pointer
+command_func_t find_command(const char *input, command_t commands[], int num_commands) {
+    for (int i = 0; i < num_commands; i++) {
+        if (strncmp(input, commands[i].keyword, strlen(commands[i].keyword)) == 0) {
+            return commands[i].func;
+        }
+    }
+    return NULL;
+}
 
 int main(int argc, char** argv) {
     // CP/M Plus has values for screen size in System Control Block
@@ -309,9 +325,37 @@ int main(int argc, char** argv) {
     char *cp = cmdline;
     *cp = '\0';
 
+    // list of text commands from prompt line and called function
+    command_t commands[] = {
+        { "HELP", help },
+
+        { "VIEW", view_file },
+        { "TYPE", view_file },
+        { "CAT", view_file },
+
+        { "DUMP", dump_file },
+        { "HEX", dump_file },
+
+        { "COPY", copy },
+        { "CP", copy },
+
+        {"DEL", delete },
+        {"ERA", delete },
+        {"RM", delete },
+
+        { "TOP", first_file },
+        { "POS1", first_file },
+
+        { "BOT", last_file },
+        { "END", last_file },
+    };
+
+    int num_commands = sizeof(commands) / sizeof(commands[0]);
+
     while( loop ) { // terminal key input loop
         k = wait_key_hw();
         show_cursor();
+        // printable char go to the prompt line, BS deletes, CR executes
         if ( k > SPC ) {
             if ( cp < cmdline + CMDLINELEN ) {
                 *cp++ = toupper( k );
@@ -320,43 +364,21 @@ int main(int argc, char** argv) {
         } else if ( k == BS ) {
             if ( cp > cmdline )
                 *--cp = '\0';
-        } else if ( k == CR ) { // very simple cmd line parser
+        } else if ( k == CR ) { // cmd line parser
+            // "A:" .. "P:"
             if ( cmdline[1] == ':' && *cmdline >= 'A' && *cmdline <= 'P' ) {
                 change_drive( *cmdline );
-            }
-            else if ( !strncmp( cmdline, "TYPE", 4 )
-                || !strncmp( cmdline, "VIEW", 4 )
-                || !strncmp( cmdline, "CAT", 3 ) ) {
-                view_file();
-            }
-            else if ( !strncmp( cmdline, "DUMP", 4 )
-                || !strncmp( cmdline, "HEX", 3 ) ) {
-                dump_file();
-            }
-            else if ( !strncmp( cmdline, "COPY", 4 )
-                || !strncmp( cmdline, "CP", 2 ) ) {
-                copy();
-            }
-            else if ( !strncmp( cmdline, "DEL", 3 )
-                || !strncmp( cmdline, "ERA", 3 )
-                || !strncmp( cmdline, "RM", 2 ) ) {
-                delete();
-            }
-            else if ( !strncmp( cmdline, "TOP", 3 )
-                || !strncmp( cmdline, "POS1", 4 ) ) {
-                first_file();
-            }
-            else if ( !strncmp( cmdline, "BOT", 3 )
-                || !strncmp( cmdline, "END", 3 ) ) {
-                last_file();
-            }
-            else if ( !strncmp( cmdline, "HELP", 4 ) ) {
-                help();
             }
             else if ( !strncmp( cmdline, "EXIT", 4 )
                 || !strncmp( cmdline, "QUIT", 4 ) ) {
                 break;
             }
+            else if ( *cmdline ) { // scan cmd list and get function
+                command_func_t function = find_command( cmdline, commands, num_commands );
+                if ( function ) // if found ..
+                    function(); // .. execute it
+            }
+            // clear cmd string
             cp = cmdline;
             *cp = '\0';
         }
