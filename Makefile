@@ -1,4 +1,4 @@
-all: zmc.com zmc8080.com keytest.com
+all: zmc.com zmc8080.com keytest.com bioskeyt.com
 
 zmc.com: main.c panel.c operations.c globals.c vt100.c zmc.h Makefile
 	zcc +cpm -O3 -vn -DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 -Wall \
@@ -11,3 +11,8 @@ zmc8080.com: main.c panel.c operations.c globals.c vt100.c zmc.h Makefile
 keytest.com: keytest.c Makefile
 	zcc +cpm -O3 -vn -DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 -Wall \
 	keytest.c -o keytest.com -create-app
+
+bioskeyt.com: bioskeyt.asm Makefile
+	zasm -b $< -o $@
+
+
