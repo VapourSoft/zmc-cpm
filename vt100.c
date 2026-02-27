@@ -62,7 +62,7 @@ uint8_t parse_function_keys( uint8_t k ) {
         }
     }
     // the VT100 PF1 ... PF4 keys <ESC>OP ... <ESC>OS
-    else if ( k == 'O' ) {
+    else if ( k == 'O' ) { // char OSCAR
         k = wait_key_hw();
         if ( k == 'P' ) { // F1 = "<ESC>OP" HELP
             help();
@@ -73,6 +73,35 @@ uint8_t parse_function_keys( uint8_t k ) {
         else if ( k == 'S' ) { // F4 = "<ESC>OS" DUMP
             dump_file();
         }
+        // here comes the shirsch style extrapolation of F5, F8, F10
+        else if ( k == 'T' ) { // F5 = "<ESC>OT" DUMP
+            copy();
+        }
+        else if ( k == 'W' ) { // F8 = "<ESC>OW" DUMP
+            delete();
+        }
+        else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
+            loop = 0; // ready, leave loop
+        }
+    }
+    // now comes the mc style coding ESC1...ESC0 as proposed by SvenMb
+    else if ( k == '1' ) {
+        help();
+    }
+    else if ( k == '3' ) {
+        view_file();
+    }
+    else if ( k == '4' ) {
+        dump_file();
+    }
+    else if ( k == '5' ) {
+        copy();
+    }
+    else if ( k == '8' ) {
+        delete();
+    }
+    else if ( k == '0' ) { // ZERO
+        loop = 0;
     }
     return loop;
 }
