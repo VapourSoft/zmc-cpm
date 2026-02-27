@@ -69,15 +69,15 @@ void show_prompt() {
 void refresh_ui(uint8_t which_panel) {
     hide_cursor();
     if ( which_panel & 0b01) {
-        if ( App.left.active )
+        if ( App.active_panel == &App.left )
             draw_panel(&App.left, 1);
-        else if ( App.right.active )
+        else if ( App.active_panel == &App.right )
             draw_panel(&App.right, *COLUMNS/2+1);
     }
     if ( which_panel & 0b10) {
-        if ( App.right.active )
+        if ( App.active_panel == &App.right )
             draw_panel(&App.left, 1);
-        else if ( App.left.active )
+        else if ( App.active_panel == &App.left )
             draw_panel(&App.right, *COLUMNS/2+1);
     }
     goto_xy( 1, PANEL_HEIGHT+2 );

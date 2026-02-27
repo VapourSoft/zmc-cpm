@@ -62,9 +62,10 @@ void other_panel() {
     int old_right_idx = App.right.current_idx;
 
     // change focus
-    App.left.active = !App.left.active;
-    App.right.active = !App.right.active;
-    App.active_panel = App.left.active ? &App.left : &App.right;
+    if ( App.active_panel == &App.left )
+        App.active_panel = &App.right;
+    else
+        App.active_panel = &App.left;
 
     // chirurgical update: refresh only the lines with cursors
     draw_file_line(&App.left, 1, old_left_idx);
@@ -203,7 +204,7 @@ void delete() {
         load_directory(App.active_panel);
         // if left == right update both panels
         if ( App.left.drive == App.right.drive )
-            if ( App.left.active )
+            if ( App.active_panel == &App.left )
                 copy_panel( &App.left, &App.right );
             else
                 copy_panel( &App.right, &App.left );
@@ -239,28 +240,28 @@ void help() {
 #else
     puts( "= ZMC 1.3 (8080 version) - Volney Torres =" );
 #endif
-
+    const uint8_t helppos = 40;
     goto_xy( 1, line );
     printf( "A: ... P:" );
-    goto_xy( 32, line++ );
+    goto_xy( helppos, line++ );
     puts( "Select drive" );
     printf( "[TAB]" );
-    goto_xy( 32, line++ );
+    goto_xy( helppos, line++ );
     puts( "Change panel" );
-    printf( "[F3], TYPE, VIEW, CAT");
-    goto_xy( 32, line++ );
+    printf( "[F3],  [ESC]3, TYPE, VIEW, CAT");
+    goto_xy( helppos, line++ );
     puts( "Show file" );
-    printf( "[F4], DUMP, HEX" );
-    goto_xy( 32, line++ );
+    printf( "[F4],  [ESC]4, DUMP, HEX" );
+    goto_xy( helppos, line++ );
     puts( "Hexdump file" );
-    printf( "[F5], COPY, CP" );
-    goto_xy( 32, line++ );
+    printf( "[F5],  [ESC]5, COPY, CP" );
+    goto_xy( helppos, line++ );
     puts( "Copy file(s)");
-    printf( "[F8], DEL, ERA, RM" );
-    goto_xy( 32, line++ );
+    printf( "[F8],  [ESC]8, [ESC]3, DEL, ERA, RM" );
+    goto_xy( helppos, line++ );
     puts( "Delete file(s)" );
-    printf( "[F9], [ESC][ESC], QUIT, EXIT" );
-    goto_xy( 32, line++ );
+    printf( "[F10], [ESC]0, [ESC][ESC], QUIT, EXIT" );
+    goto_xy( helppos, line++ );
     puts( "Exit" );
     wait_key_hw();
     refresh_ui( PAN_BOTH );
@@ -362,8 +363,6 @@ int main(int argc, char** argv) {
     App.left.files = f_left;
     App.right.files = f_right;
 
-    App.left.drive = '@'; App.left.active = 1; // current drive
-    App.right.drive = '@'; App.right.active = 0; // current drive
     App.active_panel = &App.left;
 
     load_directory(&App.left);

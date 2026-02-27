@@ -266,7 +266,6 @@ typedef struct {
     uint16_t current_idx;
     uint16_t scroll_offset;
     char drive;
-    uint8_t active;
     uint8_t show_date;
 } Panel;
 

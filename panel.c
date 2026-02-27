@@ -41,7 +41,7 @@ void draw_frame(int x, int y, int w, int h, char *title) {
 
 
 void draw_file_info( Panel *p, int f_idx ) {
-    if (p->active && f_idx == p->current_idx)
+    if ( App.active_panel == p && f_idx == p->current_idx)
         set_invers();
 
     printf("%c%-12s %c%c%c",
@@ -77,14 +77,14 @@ void draw_file_info( Panel *p, int f_idx ) {
             while ( w-- )
                 putchar( ' ' );
         }
-        if (p->active && f_idx == p->current_idx)
+        if ( App.active_panel == p && f_idx == p->current_idx)
             set_normal();
         // fill to end of panel line
         w = PANEL_WIDTH < 42 ? PANEL_WIDTH - 39 : PANEL_WIDTH - 42;
         while ( w-- )
             putchar( ' ' );
     } else { // no date for complete drive or panel too narrow
-        if (p->active && f_idx == p->current_idx)
+        if ( App.active_panel == p && f_idx == p->current_idx)
             set_normal();
         w = PANEL_WIDTH - 25;
         while ( w-- )
