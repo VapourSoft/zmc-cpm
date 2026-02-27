@@ -67,6 +67,7 @@ void show_prompt() {
 
 
 void refresh_ui(uint8_t which_panel) {
+    hide_cursor();
     if ( which_panel & 0b01) {
         if ( App.left.active )
             draw_panel(&App.left, 1);
@@ -86,7 +87,6 @@ void refresh_ui(uint8_t which_panel) {
     } else if ( PANEL_WIDTH >= 30 ) {
         printf("A:-P:|TAB:Sw|F1:Help|F3:View|F4:Dump|F5:Copy|F8:Del|F10:Exit");
     }
-    set_normal();
     show_prompt();
 }
 
