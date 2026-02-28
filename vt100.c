@@ -44,7 +44,8 @@ uint8_t parse_function_keys( uint8_t k ) {
             last_file();
         } else if ( k == '1' ) { // F5 = "<ESC>[15~" / F8 = "<ESC>[19~"
             k = wait_key_hw();
-            if ( k == '5' && wait_key_hw() == '~' ) { // F5 = "<ESC>[15~" COPY
+            if ( k == '5' || k == '6' && wait_key_hw() == '~' ) {
+                // F5 = "<ESC>[15~" COPY (HACK: minicom sends "<ESC>[16~")
                 copy();
             } else if ( k == '9' && wait_key_hw() == '~' ) { // F8 = "<ESC>[19~" DELETE
                 delete();

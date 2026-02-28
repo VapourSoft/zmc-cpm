@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
     mallinfo( &total, &largest );
 
     // calculate number of file entries
-    MAX_FILES = largest / sizeof( FileEntry ) / 2;
+    MAX_FILES = largest / sizeof( FileEntry ) / 2 - 1;
 
     // Set current drive for panels
     char drive_left  = '@';
