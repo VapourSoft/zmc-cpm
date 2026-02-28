@@ -41,6 +41,8 @@ the wordstar key bindings:
 
 `^E` = UP, `^X` = DOWN, `^R` = PAGEUP, `^C` = PAGEDOWN
 
+The function keys `F1`...`F10` can be substituted by the midnight commander solution `[ESC]1` ... `[ESC]0`, i.e. type [ESC] and then the digit.
+
 ZMC allows also to enter commands in the prompt line `A> ` followed by `[CR]`,
 i.e.
 

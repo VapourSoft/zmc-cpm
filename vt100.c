@@ -16,7 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-// interface functions for VT100 terminal output
+// interface functions for VT100 terminal input and output
+// some VT52 keys (up, down, F1, F3, F4) are also recognised
 
 #include <stdint.h>
 #include <stdio.h>
@@ -83,6 +84,21 @@ uint8_t parse_function_keys( uint8_t k ) {
         else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
             loop = 0; // ready, leave loop
         }
+    } // now the VT52 cursor keys and F1, F3, F4
+    else if ( k == 'A' ) { // "<ESC>A" LINE_UP
+        line_up();
+    }
+    else if ( k == 'B' ) { // "<ESC>B" LINE_DOWN
+        line_down();
+    }
+    else if ( k == 'P' ) { // "<ESC>P" F1
+        help();
+    }
+    else if ( k == 'R' ) { // "<ESC>R" F3
+        view_file();
+    }
+    else if ( k == 'S' ) { // "<ESC>R" F4
+        dump_file();
     }
     return loop;
 }
