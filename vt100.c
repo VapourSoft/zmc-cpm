@@ -84,25 +84,6 @@ uint8_t parse_function_keys( uint8_t k ) {
             loop = 0; // ready, leave loop
         }
     }
-    // now comes the mc style coding ESC1...ESC0 as proposed by SvenMb
-    else if ( k == '1' ) {
-        help();
-    }
-    else if ( k == '3' ) {
-        view_file();
-    }
-    else if ( k == '4' ) {
-        dump_file();
-    }
-    else if ( k == '5' ) {
-        copy();
-    }
-    else if ( k == '8' ) {
-        delete();
-    }
-    else if ( k == '0' ) { // ZERO
-        loop = 0;
-    }
     return loop;
 }
 

@@ -38,8 +38,6 @@ extern AppState App;
 uint8_t wait_key_bios( void ) {
     // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
     uint8_t k = bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
-    if ( k == RUB ) // translate RUB to BS
-        k = BS;
     return k;
 }
 
@@ -47,8 +45,6 @@ uint8_t wait_key_bios( void ) {
 uint8_t wait_key_bdos( void ) {
     // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
     uint8_t k = bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
-    if ( k == RUB ) // translate RUB to BS
-        k = BS;
     return k;
 }
 
@@ -93,16 +89,7 @@ void select_file() {
     draw_file_line(App.active_panel, offset, idx);
 
     // C. move the cursor to the next line
-    if (App.active_panel->current_idx < App.active_panel->num_files - 1) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx++;
-
-        // D. redraw previous line (w/o cursor but with '*')
-        draw_file_line(App.active_panel, offset, old_idx);
-
-        // E. redraw new line (with cursor)
-        draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-    }
+    line_down();
 }
 
 
@@ -308,6 +295,10 @@ int main(int argc, char** argv) {
     // calculate number of file entries
     MAX_FILES = largest / sizeof( FileEntry ) / 2;
 
+    // Set current drive for panels
+    char drive_left  = '@';
+    char drive_right = '@';
+
     // cmd line argument "--config" shows address of screen size constants
     // in zmc.com to help the user to patch with a HEX editor, e.g. BE.
     while ( --argc ) {
@@ -343,6 +334,11 @@ int main(int argc, char** argv) {
                     return 0;
                 esc = k == ESC; // remember <ESC>
             }
+        } else if ( *argv[0] >= 'A' && *argv[0] <= 'P' ) {
+             if ( argc == 1 )
+                 drive_right = *argv[0];
+             else
+                 drive_left  = *argv[0];
         }
     }
 
@@ -362,6 +358,8 @@ int main(int argc, char** argv) {
 
     App.left.files = f_left;
     App.right.files = f_right;
+    App.left.drive = drive_left;
+    App.right.drive = drive_right;
 
     App.active_panel = &App.left;
 
@@ -408,13 +406,13 @@ int main(int argc, char** argv) {
     while( loop ) { // terminal key input loop
         k = wait_key_hw();
         show_cursor();
-        // printable char go to the prompt line, BS deletes, CR executes
-        if ( k > SPC ) {
+        // printable char go to the prompt line, BS/RUB deletes, CR executes
+        if ( k > SPC && k < RUB ) {
             if ( cp < cmdline + CMDLINELEN ) {
                 *cp++ = toupper( k );
                 *cp = '\0';
             }
-        } else if ( k == BS ) {
+        } else if ( k == BS || k == RUB ) {
             if ( cp > cmdline )
                 *--cp = '\0';
         } else if ( k == CR ) { // cmd line parser
@@ -459,10 +457,31 @@ int main(int argc, char** argv) {
         // now the multi character function keys starting with <ESC>
         else if ( k == ESC ) { // ESC sequences
             k = wait_key_hw();
-            if ( k == ESC ) // <ESC><ESC>
+            if ( k == ESC ) { // <ESC><ESC>
                 loop = 0; // quit program
-            else
+            }
+            // now comes the mc style coding ESC1...ESC0 as proposed by SvenMb
+            else if ( k == '1' ) { // <ESC>1
+                help();
+            }
+            else if ( k == '3' ) { // <ESC>3
+                view_file();
+            }
+            else if ( k == '4' ) { // <ESC>4
+                dump_file();
+            }
+            else if ( k == '5' ) { // <ESC>5
+                copy();
+            }
+            else if ( k == '8' ) { // <ESC>8
+                delete();
+            }
+            else if ( k == '0' ) { // <ESC>0 (ZERO)
+                loop = 0;
+            }
+            else {
                 loop = parse_function_keys( k ); // VT100 function keys
+            }
         }
         if ( loop )
             show_prompt();
