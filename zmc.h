@@ -305,7 +305,8 @@ void help( void );
 uint8_t parse_function_keys( uint8_t key );
 
 void print_cpm_attrib( uint8_t *ca );
-void draw_panel(Panel *p, uint8_t x_offset);
+void draw_header(Panel *p);
+void draw_panel(Panel *p);
 void load_directory(Panel *p);
 void copy_panel( Panel *src, Panel *dst );
 extern uint8_t (*wait_key_hw)(void);

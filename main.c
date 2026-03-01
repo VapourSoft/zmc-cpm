@@ -54,18 +54,17 @@ uint8_t (*wait_key_hw)(void) = &wait_key_bios;
 
 
 void other_panel() {
-    int old_left_idx = App.left.current_idx;
-    int old_right_idx = App.right.current_idx;
-
     // change focus
     if ( App.active_panel == &App.left )
         App.active_panel = &App.right;
     else
         App.active_panel = &App.left;
+    draw_header( &App.left );
+    draw_header( &App.right );
 
     // chirurgical update: refresh only the lines with cursors
-    draw_file_line(&App.left, 1, old_left_idx);
-    draw_file_line(&App.right, PANEL_WIDTH+1, old_right_idx);
+    draw_file_line(&App.left, 1, App.left.current_idx);
+    draw_file_line(&App.right, PANEL_WIDTH+1, App.right.current_idx);
     show_prompt();
 }
 
@@ -78,6 +77,8 @@ void change_drive( char k ) {
 
 
 void select_file() {
+    if ( !App.active_panel->num_files )
+        return;
     int idx = App.active_panel->current_idx;
     int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
 
@@ -111,7 +112,7 @@ void line_up() {
 
 
 void line_down() {
-    if (App.active_panel->current_idx < App.active_panel->num_files - 1) {
+    if (App.active_panel->current_idx + 1 < App.active_panel->num_files ) {
         int old_idx = App.active_panel->current_idx;
         App.active_panel->current_idx++;
 
@@ -128,8 +129,8 @@ void line_down() {
 
 
 void page_up() {
-    if (App.active_panel->current_idx >= VISIBLE_ROWS/2)
-        App.active_panel->current_idx -= VISIBLE_ROWS/2;
+    if (App.active_panel->current_idx >= VISIBLE_ROWS)
+        App.active_panel->current_idx -= VISIBLE_ROWS;
     else
         App.active_panel->current_idx = 0;
     refresh_ui( PAN_ACTIVE );
@@ -137,7 +138,7 @@ void page_up() {
 
 
 void page_down() {
-    App.active_panel->current_idx += VISIBLE_ROWS/2;
+    App.active_panel->current_idx += VISIBLE_ROWS;
     if (App.active_panel->current_idx >= App.active_panel->num_files)
         App.active_panel->current_idx = App.active_panel->num_files - 1;
     refresh_ui( PAN_ACTIVE );
@@ -342,6 +343,9 @@ int main(int argc, char** argv) {
         }
     }
 
+    if ( DEBUG )
+        --*LINES; // debugging output in the last line
+
     FileEntry *f_left;
     FileEntry *f_right;
 
@@ -365,6 +369,7 @@ int main(int argc, char** argv) {
 
     load_directory(&App.left);
     load_directory(&App.right);
+
     clr_scr();
     goto_xy( 1, 1 );
     hide_cursor();

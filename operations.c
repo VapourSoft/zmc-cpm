@@ -154,11 +154,28 @@ void load_directory(Panel *p) {
     p->current_idx = 0;
     p->scroll_offset = 0;
     p->show_date = 0;
+    p->files->cpmname[0] = '\0';
+
+    if ( DEVEL && p->drive == 'P' ) { // simulate empty drive
+        *(p->files[0].cpmname) = '\0';
+        return;
+    }
 
     if (p->drive == '@') // '@' -> select current drive
         p->drive = bdos( 25, fcb_src ) + 'A';
+
     /* 1. change drive to fetch the complete directory */
-    bdos(14, p->drive - 'A');
+    result = bdos(14, p->drive - 'A');
+
+    if ( DEBUG ) {
+        goto_xy( 1, SCREEN_HEIGHT + 1 ); // debugging line
+        printf( "select %c: 0x%02X", p->drive, result );
+    }
+
+    if ( result ) {
+        p->drive = '?';
+        return;
+    }
 
     /* 2. Prepare FCB to match all files (*.*) and all extents */
     memset(fcb_src, 0, sizeof(fcb_src));
@@ -250,6 +267,7 @@ void load_directory(Panel *p) {
     p->num_files = count;
 }
 
+
 // copy panel content when both panels show the same drive
 void copy_panel( Panel *src, Panel *dst ) {
     if ( src == dst )
@@ -310,12 +328,10 @@ void view_file() {
     Panel *p = App.active_panel;
     int i;
     int line_count = -1;
-    char *name_ptr = p->files[p->current_idx].cpmname;
-    char *temp_ptr;
+    char *name = p->files[p->current_idx].cpmname;
 
-    if (p->num_files == 0) return;
     show_header();
-    prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
+    prepare_fcb(name, p, NULL);
     // open and read
     if (bdos(15, fcb_src) != 255) { // BDOS function 15 - Open directory
         while (bdos(20, fcb_src) == 0) { // BDOS function 20 (F_READ) - read next record
@@ -328,7 +344,7 @@ void view_file() {
                     line_count++;
                     // Pausa cuando se llena la pantalla (aprox VISIBLE_ROWS líneas)
                     if (line_count >= PANEL_HEIGHT) {
-                        show_footer( "VIEW", name_ptr );
+                        show_footer( "VIEW", name );
                         if ( wait_key_hw() == ESC )
                             goto esc_file;
                         putchar( '\r' );
@@ -359,8 +375,6 @@ void dump_file() {
     int i, j, line_count = -1;
     long address = 0;
     char *name_ptr = p->files[p->current_idx].cpmname;
-
-    if (p->num_files == 0) return;
 
     show_header();
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
@@ -409,17 +423,17 @@ esc_file:
 // copy a specific file by its index
 int copy_file_by_index(Panel *src, Panel *dst, uint16_t f_idx) {
     prepare_fcb(src->files[f_idx].cpmname, src, dst);
-    bdos(19, fcb_dst); // BDOS function 19 (F_DELETE) - delete file
+    bdos(19, fcb_dst);                       // BDOS function 19 (F_DELETE) - delete file
     if (bdos(15, fcb_src) == 255) return -1; // BDOS function 15 - Open directory
     if (bdos(22, fcb_dst) == 255) return -1; // BDOS function 22 (F_MAKE) - create file
-    while (bdos(20, fcb_src) == 0) // BDOS function 20 (F_READ) - read next record
-        if (bdos(21, fcb_dst) != 0) break; // BDOS function 21 (F_WRITE) - write next record
-    bdos(16, fcb_dst); // BDOS function 16 - Close directory
+    while (bdos(20, fcb_src) == 0)           // BDOS function 20 (F_READ) - read next record
+        if (bdos(21, fcb_dst) != 0) break;   // BDOS function 21 (F_WRITE) - write next record
+    bdos(16, fcb_dst);                       // BDOS function 16 - Close directory
     return 0;
 }
 
 
-/* 2. process multi selections */
+// process multi selections
 void exec_multi_copy(Panel *src, Panel *dst) {
     int i, marked = 0, done = 0;
 
@@ -451,6 +465,7 @@ void exec_multi_copy(Panel *src, Panel *dst) {
     load_directory(dst);
     // the refresh will be done by main.c after calling this function.
 }
+
 
 void exec_multi_delete(Panel *p) {
     int i, marked = 0, done = 0;

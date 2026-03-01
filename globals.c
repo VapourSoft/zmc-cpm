@@ -56,6 +56,22 @@ void print_cpm_attrib( uint8_t *ca) {
     );
 }
 
+void draw_header( Panel *p ) {
+    uint8_t i;
+    uint8_t x_offset = p == &App.left ? 1 : PANEL_WIDTH + 1;
+    i = PANEL_WIDTH - 2;
+    putchar_xy( x_offset, 1, ' ' );
+    while ( i-- )
+        putchar('_');
+    putchar(' ');
+    goto_xy( x_offset + 2 , 1 );
+    if ( p == App.active_panel )
+        set_invers();
+    printf( "[ DISK %c: ]", p->drive );
+    if ( p == App.active_panel )
+        set_normal();
+}
+
 
 void show_prompt() {
     goto_xy( 1, PANEL_HEIGHT+1 );
@@ -70,16 +86,19 @@ void refresh_ui(uint8_t which_panel) {
     hide_cursor();
     if ( which_panel & 0b01) {
         if ( App.active_panel == &App.left )
-            draw_panel(&App.left, 1);
+            draw_panel(&App.left);
         else if ( App.active_panel == &App.right )
-            draw_panel(&App.right, *COLUMNS/2+1);
+            draw_panel(&App.right);
     }
     if ( which_panel & 0b10) {
         if ( App.active_panel == &App.right )
-            draw_panel(&App.left, 1);
+            draw_panel(&App.left);
         else if ( App.active_panel == &App.left )
-            draw_panel(&App.right, *COLUMNS/2+1);
+            draw_panel(&App.right);
     }
+    draw_header( &App.left );
+    draw_header( &App.right );
+
     goto_xy( 1, PANEL_HEIGHT+2 );
     set_invers();
     if ( PANEL_WIDTH >= 40 ) {

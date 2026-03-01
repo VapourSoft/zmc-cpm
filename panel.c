@@ -21,27 +21,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include "zmc.h"
 
-void draw_frame(int x, int y, int w, int h, char *title) {
-    int i;
-    putchar_xy( x, y, '+' );
-    for(i=0; i<w-2; ++i)
-        putchar('-');
-    putchar('+');
-    goto_xy( x+2, y );
-    printf("[ %s ]", title);
-    for(i=1; i<h-1; ++i) {
-        putchar_xy( x, y+i, '|' );
-        putchar_xy( x+w-1, y+i, '|' );
-    }
-    putchar_xy( x , y+h-1, '+' );
-    for( i = 0; i < w-2; ++i )
-        putchar( '-' );
-    putchar('+');
-}
-
 
 void draw_file_info( Panel *p, int f_idx ) {
-    if ( App.active_panel == p && f_idx == p->current_idx)
+    if ( App.active_panel == p && p->num_files && f_idx == p->current_idx)
         set_invers();
 
     printf("%c%-12s %c%c%c",
@@ -52,7 +34,9 @@ void draw_file_info( Panel *p, int f_idx ) {
            p->files[f_idx].attrib & B_ARCH ? 'A' : ' '
     );
 
-    if ( p->files[f_idx].extent < 512) // file size < 64K
+    if ( !*(p->files[f_idx].cpmname) )
+        printf( "      " );
+    else if ( p->files[f_idx].extent < 512) // file size < 64K
         printf( "%6u", p->files[f_idx].extent << 7 ); // *128
     else if ( p->files[f_idx].extent < 7812) // 64K <= file size < 1E6
         printf( "%6lu", (uint32_t)p->files[f_idx].extent << 7 ); // *128 -> uint32_t
@@ -93,9 +77,10 @@ void draw_file_info( Panel *p, int f_idx ) {
 }
 
 
-void draw_panel(Panel *p, uint8_t x_offset) {
+void draw_panel( Panel *p ) {
+    uint8_t x_offset = p == &App.left ? 1 : PANEL_WIDTH + 1;
     uint8_t i;
-    char title[10];
+
     if (p->current_idx < p->scroll_offset) {
         p->scroll_offset = p->current_idx;
     }
@@ -103,20 +88,31 @@ void draw_panel(Panel *p, uint8_t x_offset) {
         p->scroll_offset = p->current_idx - (VISIBLE_ROWS - 1);
     }
     set_normal();
-    sprintf(title, " DISK %c: ", p->drive);
-    draw_frame(x_offset, 1, PANEL_WIDTH, PANEL_HEIGHT, title);
-
+    // draw_frame( x_offset, 1, PANEL_WIDTH, PANEL_HEIGHT, title, App.active_panel == p );
     for (i = 0; i < VISIBLE_ROWS; i++) {
         int f_idx = i + p->scroll_offset;
+
+        if ( x_offset > PANEL_WIDTH ) {
+            putchar_xy( PANEL_WIDTH + 1, i + 2, '|' );
+            clr_line_right();
+            putchar_xy( 2 * PANEL_WIDTH, i + 2, '|' );
+        } else {
+            putchar_xy( PANEL_WIDTH , i + 2, '|' );
+            goto_xy( PANEL_WIDTH - 1 , i + 2 );
+            clr_line_left();
+            putchar_xy( 1, i + 2, '|' );
+        }
         goto_xy( x_offset + 1, i + 2 );
         if (f_idx < p->num_files)
             draw_file_info( p, f_idx );
-        else {
-            uint8_t w = PANEL_WIDTH-2;
-            while ( w-- )
-                putchar( ' ' );
-        }
     }
+    goto_xy( x_offset, PANEL_HEIGHT );
+    i = PANEL_WIDTH-2;
+    putchar( '|' );
+    while ( i-- )
+        putchar( '_' );
+    putchar('|');
+
 }
 
 
