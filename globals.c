@@ -20,7 +20,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <stdint.h>
 #include "zmc.h"
 
-// GLOBAL VARIABLES
+// GLOBAL VARIABLES ad GLOBAL FUNCTIONS TODO: integrate into panel.c
 
 // // the status of both panels
 AppState App;
@@ -34,7 +34,6 @@ const uint8_t CONFIG[] = { // 80x40
 
 const uint8_t *COLUMNS = CONFIG;
 const uint8_t *LINES = CONFIG+1;
-
 
 char cmdline[CMDLINELEN+1];
 
@@ -56,15 +55,11 @@ void print_cpm_attrib( uint8_t *ca) {
     );
 }
 
+
+// show the disk on top of panel, mark the active panel
 void draw_header( Panel *p ) {
-    uint8_t i;
-    uint8_t x_offset = p == &App.left ? 1 : PANEL_WIDTH + 1;
-    i = PANEL_WIDTH - 2;
-    putchar_xy( x_offset, 1, ' ' );
-    while ( i-- )
-        putchar('_');
-    putchar(' ');
-    goto_xy( x_offset + 2 , 1 );
+    uint8_t x_offset = p == &App.left ? 3 : PANEL_WIDTH + 3;
+    goto_xy( x_offset, 1 );
     if ( p == App.active_panel )
         set_invers();
     printf( "[ DISK %c: ]", p->drive );
@@ -73,6 +68,19 @@ void draw_header( Panel *p ) {
 }
 
 
+// show function key help
+void draw_footer( void ) {
+    goto_xy( 1, PANEL_HEIGHT+2 );
+    set_invers();
+    if ( PANEL_WIDTH >= 40 ) {
+        printf("| A: - P: | TAB:Sw | F1:Help | F3:View | F4:Dump | F5:Copy | F8:Del | F10:Exit |");
+    } else if ( PANEL_WIDTH >= 30 ) {
+        printf("A:-P:|TAB:Sw|F1:Help|F3:View|F4:Dump|F5:Copy|F8:Del|F10:Exit");
+    }
+}
+
+
+// cmd line with active drive
 void show_prompt() {
     goto_xy( 1, PANEL_HEIGHT+1 );
     set_normal();
@@ -82,30 +90,20 @@ void show_prompt() {
 }
 
 
+// update none, one or both panels
 void refresh_ui(uint8_t which_panel) {
     hide_cursor();
     if ( which_panel & 0b01) {
-        if ( App.active_panel == &App.left )
-            draw_panel(&App.left);
-        else if ( App.active_panel == &App.right )
-            draw_panel(&App.right);
+        draw_frame( App.active_panel );
+        draw_header( App.active_panel );
+        fill_panel( App.active_panel );
     }
     if ( which_panel & 0b10) {
-        if ( App.active_panel == &App.right )
-            draw_panel(&App.left);
-        else if ( App.active_panel == &App.left )
-            draw_panel(&App.right);
+        draw_frame( App.inactive_panel );
+        draw_header( App.inactive_panel );
+        fill_panel( App.inactive_panel );
     }
-    draw_header( &App.left );
-    draw_header( &App.right );
-
-    goto_xy( 1, PANEL_HEIGHT+2 );
-    set_invers();
-    if ( PANEL_WIDTH >= 40 ) {
-        printf("| A: - P: | TAB:Sw | F1:Help | F3:View | F4:Dump | F5:Copy | F8:Del | F10:Exit |");
-    } else if ( PANEL_WIDTH >= 30 ) {
-        printf("A:-P:|TAB:Sw|F1:Help|F3:View|F4:Dump|F5:Copy|F8:Del|F10:Exit");
-    }
+    draw_footer();
     show_prompt();
 }
 

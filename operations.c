@@ -309,14 +309,7 @@ int copy_file(Panel *src, Panel *dst) {
 }
 
 
-void show_header() {
-    clr_scr();
-    goto_xy( 1, 1 ); // home
-    hide_cursor();
-}
-
-
-void show_footer( const char *action, const char *file_name ) {
+void more( const char *action, const char *file_name ) {
     set_invers();
     printf(" %s: %s (<SPACE>: more | <ESC>: exit) ", action, file_name);
     set_normal();
@@ -330,7 +323,10 @@ void view_file() {
     int line_count = -1;
     char *name = p->files[p->current_idx].cpmname;
 
-    show_header();
+    clr_scr();
+    goto_xy( 1, 1 ); // home
+    hide_cursor();
+
     prepare_fcb(name, p, NULL);
     // open and read
     if (bdos(15, fcb_src) != 255) { // BDOS function 15 - Open directory
@@ -344,7 +340,7 @@ void view_file() {
                     line_count++;
                     // Pausa cuando se llena la pantalla (aprox VISIBLE_ROWS líneas)
                     if (line_count >= PANEL_HEIGHT) {
-                        show_footer( "VIEW", name );
+                        more( "VIEW", name );
                         if ( wait_key_hw() == ESC )
                             goto esc_file;
                         putchar( '\r' );
@@ -376,7 +372,10 @@ void dump_file() {
     long address = 0;
     char *name_ptr = p->files[p->current_idx].cpmname;
 
-    show_header();
+    clr_scr();
+    goto_xy( 1, 1 ); // home
+    hide_cursor();
+
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
 
     if (bdos(15, fcb_src) != 255) { // BDOS function 15 - Open directory
@@ -398,7 +397,7 @@ void dump_file() {
                 line_count++;
 
                 if (line_count >= PANEL_HEIGHT) {
-                    show_footer( "DUMP", name_ptr );
+                    more( "DUMP", name_ptr );
                     if (wait_key_hw() == 27) goto esc_file;
                     putchar( '\r' );
                     clr_line_right();
@@ -443,19 +442,16 @@ void exec_multi_copy(Panel *src, Panel *dst) {
 
     if (marked == 0) {
         goto_xy( 1, SCREEN_HEIGHT-1 );
-        set_invers();
+        clr_line_right();
         printf(" Copying: %s... ", src->files[src->current_idx].cpmname);
-        set_normal();
         copy_file_by_index(src, dst, src->current_idx);
     } else {
         for (i = 0; i < src->num_files; i++) {
             if (src->files[i].attrib & B_SEL) {
                 done++;
                 goto_xy( 1, SCREEN_HEIGHT-1 );
-                set_invers();
+                clr_line_right();
                 printf(" [%d/%d] Copying: %s ", done, marked, src->files[i].cpmname);
-                set_normal();
-
                 // USAR EL NOMBRE CORRECTO AQUÍ:
                 copy_file_by_index(src, dst, i);
                 src->files[i].attrib &= ~B_SEL;

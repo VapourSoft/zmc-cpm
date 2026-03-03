@@ -274,10 +274,14 @@ typedef struct {
     Panel left;
     Panel right;
     Panel *active_panel;
+    Panel *inactive_panel;
 } AppState;
 
 #define CMDLINELEN 20
 extern char cmdline[];
+
+extern uint8_t fcb_src[];
+extern uint8_t fcb_dst[];
 
 extern uint16_t MAX_FILES;
 extern AppState App;
@@ -306,7 +310,9 @@ uint8_t parse_function_keys( uint8_t key );
 
 void print_cpm_attrib( uint8_t *ca );
 void draw_header(Panel *p);
-void draw_panel(Panel *p);
+void draw_frame(Panel *p);
+void fill_panel(Panel *p);
+void draw_footer(void);
 void load_directory(Panel *p);
 void copy_panel( Panel *src, Panel *dst );
 extern uint8_t (*wait_key_hw)(void);

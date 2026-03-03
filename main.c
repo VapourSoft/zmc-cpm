@@ -55,10 +55,9 @@ uint8_t (*wait_key_hw)(void) = &wait_key_bios;
 
 void other_panel() {
     // change focus
-    if ( App.active_panel == &App.left )
-        App.active_panel = &App.right;
-    else
-        App.active_panel = &App.left;
+    Panel *tmp = App.active_panel;
+    App.active_panel = App.inactive_panel;
+    App.inactive_panel = tmp;
     draw_header( &App.left );
     draw_header( &App.right );
 
@@ -101,7 +100,7 @@ void line_up() {
 
         // if scrolling, redraw everything; if not, only two lines
         if (App.active_panel->current_idx < App.active_panel->scroll_offset) {
-            refresh_ui( PAN_ACTIVE );
+            fill_panel( App.active_panel );
         } else {
             int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
             draw_file_line(App.active_panel, offset, old_idx);
@@ -118,7 +117,7 @@ void line_down() {
 
         // if scrolling, redraw everything; if not, only two lines
         if (App.active_panel->current_idx >= App.active_panel->scroll_offset + VISIBLE_ROWS) {
-            refresh_ui( PAN_ACTIVE );
+            fill_panel( App.active_panel );
         } else {
             int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
             draw_file_line(App.active_panel, offset, old_idx);
@@ -133,7 +132,7 @@ void page_up() {
         App.active_panel->current_idx -= VISIBLE_ROWS;
     else
         App.active_panel->current_idx = 0;
-    refresh_ui( PAN_ACTIVE );
+    fill_panel( App.active_panel );
 }
 
 
@@ -141,19 +140,19 @@ void page_down() {
     App.active_panel->current_idx += VISIBLE_ROWS;
     if (App.active_panel->current_idx >= App.active_panel->num_files)
         App.active_panel->current_idx = App.active_panel->num_files - 1;
-    refresh_ui( PAN_ACTIVE );
+    fill_panel( App.active_panel );
 }
 
 
 void first_file() {
     App.active_panel->current_idx = 0;
-    refresh_ui( PAN_ACTIVE );
+    fill_panel( App.active_panel );
 }
 
 
 void last_file() {
     App.active_panel->current_idx = App.active_panel->num_files - 1;
-    refresh_ui( PAN_ACTIVE );
+    fill_panel( App.active_panel );
 }
 
 
@@ -177,7 +176,7 @@ void copy() {
     // clear status line
     goto_xy( 1, PANEL_HEIGHT+1 );
     clr_line_right();
-    refresh_ui( PAN_OTHER );
+    fill_panel( App.inactive_panel );
 }
 
 
@@ -200,7 +199,9 @@ void delete() {
     // clear status line
     goto_xy( 1, PANEL_HEIGHT+1 );
     clr_line_right();
-    refresh_ui( App.left.drive == App.right.drive ? PAN_BOTH : PAN_ACTIVE ); // file(s) deleted, refresh active panel
+    fill_panel( App.active_panel );
+    if ( App.left.drive == App.right.drive )
+        fill_panel( App.inactive_panel );
 }
 
 
@@ -296,9 +297,9 @@ int main(int argc, char** argv) {
     // calculate number of file entries
     MAX_FILES = largest / sizeof( FileEntry ) / 2 - 1;
 
-    // Set current drive for panels
-    char drive_left  = '@';
-    char drive_right = '@';
+    // Set current drive for both panels
+    char drive_left  = bdos( 25, fcb_src ) + 'A'; // get current drive
+    char drive_right = drive_left;
 
     // cmd line argument "--config" shows address of screen size constants
     // in zmc.com to help the user to patch with a HEX editor, e.g. BE.
@@ -360,20 +361,29 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    clr_scr();
+    hide_cursor();
+
     App.left.files = f_left;
     App.right.files = f_right;
     App.left.drive = drive_left;
     App.right.drive = drive_right;
 
     App.active_panel = &App.left;
+    App.inactive_panel = &App.right;
 
-    load_directory(&App.left);
-    load_directory(&App.right);
+    draw_frame( &App.left );
+    draw_header( &App.left );
+    load_directory( &App.left );
+    fill_panel( &App.left);
 
-    clr_scr();
-    goto_xy( 1, 1 );
-    hide_cursor();
-    refresh_ui( PAN_BOTH ); // refresh/init both panels
+    draw_frame( &App.right );
+    draw_header(&App.right);
+    load_directory( &App.right );
+    fill_panel( &App.right );
+
+    draw_footer();
+    show_prompt();
 
     uint8_t loop = 1;
     uint8_t k;

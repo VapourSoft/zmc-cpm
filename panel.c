@@ -22,6 +22,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "zmc.h"
 
 
+// draw one line with file name, attributes, size, date etc.
 void draw_file_info( Panel *p, int f_idx ) {
     if ( App.active_panel == p && p->num_files && f_idx == p->current_idx)
         set_invers();
@@ -77,7 +78,46 @@ void draw_file_info( Panel *p, int f_idx ) {
 }
 
 
-void draw_panel( Panel *p ) {
+// draw the empty wire frame
+void draw_frame( Panel *p) {
+    uint8_t i;
+
+    if ( &App.left == p )
+        goto_xy( 1, 1 );
+    else
+        goto_xy( PANEL_WIDTH + 1, 1 );
+    putchar(' ');
+    i = PANEL_WIDTH - 2;
+    while ( i-- )
+        putchar('_');
+    putchar(' ');
+    for (i = 0; i < VISIBLE_ROWS; i++) {
+        uint16_t f_idx = i + p->scroll_offset;
+        if ( &App.left == p ) {
+            putchar_xy( PANEL_WIDTH , i + 2, '|' );
+            goto_xy( PANEL_WIDTH - 1 , i + 2 );
+            clr_line_left();
+            putchar_xy( 1, i + 2, '|' );
+        } else {
+            putchar_xy( PANEL_WIDTH + 1, i + 2, '|' );
+            clr_line_right();
+            putchar_xy( 2 * PANEL_WIDTH, i + 2, '|' );
+        }
+    }
+    if ( &App.left == p )
+        goto_xy( 1, PANEL_HEIGHT );
+    else
+        goto_xy( PANEL_WIDTH + 1, PANEL_HEIGHT );
+    i = PANEL_WIDTH - 2;
+    putchar( '|' );
+    while ( i-- )
+        putchar( '_' );
+    putchar('|');
+}
+
+
+// fill the prepared panel with the file lines
+void fill_panel( Panel *p ) {
     uint8_t x_offset = p == &App.left ? 1 : PANEL_WIDTH + 1;
     uint8_t i;
 
@@ -88,34 +128,19 @@ void draw_panel( Panel *p ) {
         p->scroll_offset = p->current_idx - (VISIBLE_ROWS - 1);
     }
     set_normal();
-    // draw_frame( x_offset, 1, PANEL_WIDTH, PANEL_HEIGHT, title, App.active_panel == p );
+    // draw_header( p );
+    // draw_frame( p );
     for (i = 0; i < VISIBLE_ROWS; i++) {
         int f_idx = i + p->scroll_offset;
-
-        if ( x_offset > PANEL_WIDTH ) {
-            putchar_xy( PANEL_WIDTH + 1, i + 2, '|' );
-            clr_line_right();
-            putchar_xy( 2 * PANEL_WIDTH, i + 2, '|' );
-        } else {
-            putchar_xy( PANEL_WIDTH , i + 2, '|' );
-            goto_xy( PANEL_WIDTH - 1 , i + 2 );
-            clr_line_left();
-            putchar_xy( 1, i + 2, '|' );
-        }
-        goto_xy( x_offset + 1, i + 2 );
-        if (f_idx < p->num_files)
+        if (f_idx < p->num_files) {
+            goto_xy( x_offset + 1, i + 2 );
             draw_file_info( p, f_idx );
+        }
     }
-    goto_xy( x_offset, PANEL_HEIGHT );
-    i = PANEL_WIDTH-2;
-    putchar( '|' );
-    while ( i-- )
-        putchar( '_' );
-    putchar('|');
-
 }
 
 
+// put one file info at defined position
 void draw_file_line(Panel *p, uint8_t x_offset, uint16_t file_idx) {
     if (file_idx >= p->scroll_offset && file_idx < p->scroll_offset + VISIBLE_ROWS) {
         goto_xy( x_offset + 1, file_idx - p->scroll_offset + 2 );
