@@ -502,7 +502,8 @@ void exec_multi_delete(Panel *p) {
 
 
 void copy_file() {
-    if ( App.left.drive == App.right.drive ) // cannot copy to same drive
+    if ( !App.active_panel->num_files         // nothing to do
+       || App.left.drive == App.right.drive ) // cannot copy to same drive
         return;
     Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
     // clear dialog box and ask
@@ -521,6 +522,8 @@ void copy_file() {
 
 
 void delete_file() {
+    if ( !App.active_panel->num_files ) // nothing to do
+        return;
     // clear dialog box and ask
     goto_xy( 1, PANEL_HEIGHT+1 );
     clr_line_right();
