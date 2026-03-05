@@ -32,177 +32,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "zmc.h"
 
 
-extern AppState App;
+// // the status of both panels
+AppState App;
 
+// default configuration, can be patched for the target terminal
+// get the address of the config values with "zmc --config
+const uint8_t CONFIG[] = { // 80x40
+    80,  // Columns
+    24   // Lines
+};
 
-uint8_t wait_key_bios( void ) {
-    // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
-    return k;
-}
+const uint8_t *COLUMNS = CONFIG;
+const uint8_t *LINES = CONFIG+1;
 
+char cmdline[CMDLINELEN+1];
 
-uint8_t wait_key_bdos( void ) {
-    // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
-    return k;
-}
+uint8_t DEBUG = 0; // increase with "zmc --debug", can be used to enable messages etc.
+uint8_t DEVEL = 0; // increase with "zmc --devel", can be used to enable new features
 
-
-// function pointer, default is BIOS, can be switched to BDOS for CP/M3
-uint8_t (*wait_key_hw)(void) = &wait_key_bios;
-
-
-void other_panel() {
-    // change focus
-    Panel *tmp = App.active_panel;
-    App.active_panel = App.inactive_panel;
-    App.inactive_panel = tmp;
-    draw_header( &App.left );
-    draw_header( &App.right );
-
-    // chirurgical update: refresh only the lines with cursors
-    draw_file_line(&App.left, 1, App.left.current_idx);
-    draw_file_line(&App.right, PANEL_WIDTH+1, App.right.current_idx);
-    show_prompt();
-}
-
-
-void change_drive( char k ) {
-    App.active_panel->drive = k;
-    load_directory(App.active_panel);
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-void select_file() {
-    if ( !App.active_panel->num_files )
-        return;
-    int idx = App.active_panel->current_idx;
-    int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-
-    // A. invert the selection state in memory
-    App.active_panel->files[idx].attrib ^= B_SEL;
-
-    // B. redraw current line to show '*'
-    // IMPORTANT: current_idx was not changed, line is drawn with cursor.
-    draw_file_line(App.active_panel, offset, idx);
-
-    // C. move the cursor to the next line
-    line_down();
-}
-
-
-void line_up() {
-    if (App.active_panel->current_idx > 0) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx--;
-
-        // if scrolling, redraw everything; if not, only two lines
-        if (App.active_panel->current_idx < App.active_panel->scroll_offset) {
-            fill_panel( App.active_panel );
-        } else {
-            int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-            draw_file_line(App.active_panel, offset, old_idx);
-            draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-        }
-    }
-}
-
-
-void line_down() {
-    if (App.active_panel->current_idx + 1 < App.active_panel->num_files ) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx++;
-
-        // if scrolling, redraw everything; if not, only two lines
-        if (App.active_panel->current_idx >= App.active_panel->scroll_offset + VISIBLE_ROWS) {
-            fill_panel( App.active_panel );
-        } else {
-            int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-            draw_file_line(App.active_panel, offset, old_idx);
-            draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-        }
-    }
-}
-
-
-void page_up() {
-    if (App.active_panel->current_idx >= VISIBLE_ROWS)
-        App.active_panel->current_idx -= VISIBLE_ROWS;
-    else
-        App.active_panel->current_idx = 0;
-    fill_panel( App.active_panel );
-}
-
-
-void page_down() {
-    App.active_panel->current_idx += VISIBLE_ROWS;
-    if (App.active_panel->current_idx >= App.active_panel->num_files)
-        App.active_panel->current_idx = App.active_panel->num_files - 1;
-    fill_panel( App.active_panel );
-}
-
-
-void first_file() {
-    App.active_panel->current_idx = 0;
-    fill_panel( App.active_panel );
-}
-
-
-void last_file() {
-    App.active_panel->current_idx = App.active_panel->num_files - 1;
-    fill_panel( App.active_panel );
-}
-
-
-uint8_t yes_no() {
-    char k = wait_key_hw();
-    return (k == 'y' || k == 'Y');
-}
-
-
-void copy() {
-    if ( App.left.drive == App.right.drive ) // cannot copy to same drive
-        return;
-    Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
-    // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    printf(" COPY SELECTED FILE(S) TO %c:? (Y/N) ", dest->drive);
-    if ( yes_no() )
-        // Y: copy multiple files
-        exec_multi_copy(App.active_panel, dest);
-    // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    fill_panel( App.inactive_panel );
-}
-
-
-void delete() {
-    // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    printf(" DELETE SELECTED FILE(S)? (Y/N) " );
-    if ( yes_no() ) {
-        // Y: call master function
-        exec_multi_delete(App.active_panel);
-        load_directory(App.active_panel);
-        // if left == right update both panels
-        if ( App.left.drive == App.right.drive )
-            if ( App.active_panel == &App.left )
-                copy_panel( &App.left, &App.right );
-            else
-                copy_panel( &App.right, &App.left );
-    }
-    // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    fill_panel( App.active_panel );
-    if ( App.left.drive == App.right.drive )
-        fill_panel( App.inactive_panel );
-}
+uint16_t MAX_FILES = 0;
 
 
 void help() {
@@ -255,6 +103,25 @@ void help() {
     wait_key_hw();
     refresh_ui( PAN_BOTH );
 }
+
+
+uint8_t wait_key_bios( void ) {
+    // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
+    uint8_t k = bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
+    return k;
+}
+
+
+uint8_t wait_key_bdos( void ) {
+    // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
+    uint8_t k = bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
+    return k;
+}
+
+
+// function pointer, default is BIOS, can be switched to BDOS for CP/M3
+uint8_t (*wait_key_hw)(void) = &wait_key_bios;
+
 
 typedef void (*command_func_t)(void);
 
@@ -402,12 +269,12 @@ int main(int argc, char** argv) {
         { "DUMP", dump_file },
         { "HEX", dump_file },
 
-        { "COPY", copy },
-        { "CP", copy },
+        { "COPY", copy_file },
+        { "CP", copy_file },
 
-        { "DEL", delete },
-        { "ERA", delete },
-        { "RM", delete },
+        { "DEL", delete_file },
+        { "ERA", delete_file },
+        { "RM", delete_file },
 
         { "TOP", first_file },
         { "POS1", first_file },
@@ -486,10 +353,10 @@ int main(int argc, char** argv) {
                 dump_file();
             }
             else if ( k == '5' ) { // <ESC>5
-                copy();
+                copy_file();
             }
             else if ( k == '8' ) { // <ESC>8
-                delete();
+                delete_file();
             }
             else if ( k == '0' ) { // <ESC>0 (ZERO)
                 loop = 0;

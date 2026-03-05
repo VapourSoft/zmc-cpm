@@ -262,9 +262,9 @@ typedef struct {
 
 typedef struct {
     FileEntry *files;
-    uint16_t num_files;
-    uint16_t current_idx;
-    uint16_t scroll_offset;
+    int16_t num_files;
+    int16_t current_idx;
+    int16_t scroll_offset;
     char drive;
     uint8_t show_date;
 } Panel;
@@ -285,6 +285,7 @@ extern uint8_t fcb_dst[];
 
 extern uint16_t MAX_FILES;
 extern AppState App;
+
 void set_invers( void );
 void set_normal( void );
 void show_cursor();
@@ -301,8 +302,8 @@ void page_up( void );
 void page_down( void );
 void first_file( void );
 void last_file( void );
-void copy( void );
-void delete( void );
+void copy_file( void );
+void delete_file( void );
 void select_file( void );
 void select( void );
 void help( void );
@@ -314,16 +315,18 @@ void draw_frame(Panel *p);
 void fill_panel(Panel *p);
 void draw_footer(void);
 void load_directory(Panel *p);
-void copy_panel( Panel *src, Panel *dst );
+// void copy_panel( Panel *src, Panel *dst );
 extern uint8_t (*wait_key_hw)(void);
-int delete_file();
-int copy_file(Panel *src, Panel *dst);
-void draw_file_line(Panel *p, uint8_t x_offset, uint16_t file_idx);
+// int delete_file();
+// int copy_active_file(Panel *src, Panel *dst);
+void draw_file_line(Panel *p, int16_t file_idx);
 void view_file();
 void dump_file();
-int copy_file_by_index(Panel *src, Panel *dst, uint16_t idx);
+int copy_file_by_index(Panel *src, Panel *dst, int16_t idx);
 void exec_multi_copy(Panel *src, Panel *dst);
 void exec_multi_delete(Panel *p);
 void show_prompt( void );
 void refresh_ui(uint8_t which_panel);
+void other_panel( void );
+void change_drive( char k );
 #endif

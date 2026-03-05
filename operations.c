@@ -29,7 +29,7 @@ uint8_t fcb_src[36];
 uint8_t fcb_dst[36];
 
 
-void prepare_fcb( char *name, Panel *src, Panel *dst ) {
+static void prepare_fcb( char *name, Panel *src, Panel *dst ) {
 // setup one or two FCBs for reading, copying or deleting
     char *name_ptr = name;
     if ( src ) {
@@ -65,12 +65,12 @@ void prepare_fcb( char *name, Panel *src, Panel *dst ) {
 
 
 // Function to check if a year is leap
-uint8_t is_leap_year(int year) {
+static uint8_t is_leap_year(int year) {
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
 // Array of days in month for normal and leap years
-const int days_in_month[2][12] = {
+static const int days_in_month[2][12] = {
     {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31},  // normal year
     {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}   // leap year
 };
@@ -78,7 +78,7 @@ const int days_in_month[2][12] = {
 // convert CP/M "Days since 1.1.1978" to YYMD
 // input:  date -> DD from CP/M directory
 // return: date -> YYMD
-void days_to_date( void *date ) {
+static void days_to_date( void *date ) {
     uint16_t *cpm_date = (uint16_t *)date;
     uint8_t *cpm_month = (uint8_t *)(date+2);
     uint8_t *cpm_day = (uint8_t *)(date+3);
@@ -269,7 +269,7 @@ void load_directory(Panel *p) {
 
 
 // copy panel content when both panels show the same drive
-void copy_panel( Panel *src, Panel *dst ) {
+static void copy_panel( Panel *src, Panel *dst ) {
     if ( src == dst )
         return;
     memcpy( dst->files, src->files, MAX_FILES *sizeof( FileEntry ) );
@@ -280,8 +280,8 @@ void copy_panel( Panel *src, Panel *dst ) {
 }
 
 
-// Delete the selected file(s) on active panel
-int delete_file() {
+// Delete the active file on active panel
+static int8_t delete_active_file() {
     Panel *p = App.active_panel;
     if (p->num_files == 0) return -1;
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL );
@@ -290,7 +290,7 @@ int delete_file() {
 
 
 // Copy the selected file(s) to the opposite panel
-int copy_file(Panel *src, Panel *dst) {
+int copy_active_file(Panel *src, Panel *dst) {
     // any files to copy?
     if (src->num_files == 0) return -1;
     // fill the FCBs
@@ -420,7 +420,7 @@ esc_file:
 
 
 // copy a specific file by its index
-int copy_file_by_index(Panel *src, Panel *dst, uint16_t f_idx) {
+int copy_file_by_index(Panel *src, Panel *dst, int16_t f_idx) {
     prepare_fcb(src->files[f_idx].cpmname, src, dst);
     bdos(19, fcb_dst);                       // BDOS function 19 (F_DELETE) - delete file
     if (bdos(15, fcb_src) == 255) return -1; // BDOS function 15 - Open directory
@@ -429,6 +429,12 @@ int copy_file_by_index(Panel *src, Panel *dst, uint16_t f_idx) {
         if (bdos(21, fcb_dst) != 0) break;   // BDOS function 21 (F_WRITE) - write next record
     bdos(16, fcb_dst);                       // BDOS function 16 - Close directory
     return 0;
+}
+
+
+uint8_t yes_no() {
+    char k = wait_key_hw();
+    return (k == 'y' || k == 'Y');
 }
 
 
@@ -474,7 +480,7 @@ void exec_multi_delete(Panel *p) {
         goto_xy( 1, SCREEN_HEIGHT-1 );
         clr_line_right();
         printf( " Deleting: %s... ", p->files[p->current_idx].cpmname );
-        delete_file( p );
+        delete_active_file( p );
     } else {
         // batch deletion
         for (i = 0; i < p->num_files; i++) {
@@ -493,3 +499,55 @@ void exec_multi_delete(Panel *p) {
     goto_xy( 1, SCREEN_HEIGHT-1 );
     clr_line_right();
 }
+
+
+void copy_file() {
+    if ( App.left.drive == App.right.drive ) // cannot copy to same drive
+        return;
+    Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
+    // clear dialog box and ask
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+    printf(" COPY SELECTED FILE(S) TO %c:? (Y/N) ", dest->drive);
+    if ( yes_no() ) {
+        // Y: copy multiple files
+        exec_multi_copy(App.active_panel, dest);
+        fill_panel( App.inactive_panel );
+    }
+    // clear status line
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+}
+
+
+void delete_file() {
+    // clear dialog box and ask
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+    printf(" DELETE SELECTED FILE(S)? (Y/N) " );
+    if ( yes_no() ) {
+        // Y: call master function
+        exec_multi_delete(App.active_panel);
+        load_directory(App.active_panel);
+        // if left == right update both panels
+        if ( App.left.drive == App.right.drive )
+            if ( App.active_panel == &App.left )
+                copy_panel( &App.left, &App.right );
+            else
+                copy_panel( &App.right, &App.left );
+        fill_panel( App.active_panel );
+        if ( App.left.drive == App.right.drive )
+            fill_panel( App.inactive_panel );
+    }
+    // clear status line
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+}
+
+
+void change_drive( char k ) {
+    App.active_panel->drive = k;
+    load_directory(App.active_panel);
+    refresh_ui( PAN_ACTIVE );
+}
+

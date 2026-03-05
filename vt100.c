@@ -44,12 +44,12 @@ uint8_t parse_function_keys( uint8_t k ) {
             last_file();
         } else if ( k == '1' ) { // F5 = "<ESC>[15~" / F8 = "<ESC>[19~"
             k = wait_key_hw();
-            if ( k == '5' || k == '6' && wait_key_hw() == '~' ) {
+            if ( ( k == '5' || k == '6' ) && wait_key_hw() == '~' ) {
                 // F5 = "<ESC>[15~" COPY (HACK: minicom sends "<ESC>[16~")
-                copy();
+                copy_file();
             } else if ( k == '9' && wait_key_hw() == '~' ) { // F8 = "<ESC>[19~" DELETE
-                delete();
-            } else if ( k > '5' && k < '9' ) {
+                delete_file();
+            } else if ( k > '6' && k < '9' ) {
                 wait_key_hw(); // remove '~'
             }
         } else if ( k == '2' ) {
@@ -77,10 +77,10 @@ uint8_t parse_function_keys( uint8_t k ) {
         }
         // here comes the shirsch style extrapolation of F5, F8, F10
         else if ( k == 'T' ) { // F5 = "<ESC>OT" DUMP
-            copy();
+            copy_file();
         }
         else if ( k == 'W' ) { // F8 = "<ESC>OW" DUMP
-            delete();
+            delete_file();
         }
         else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
             loop = 0; // ready, leave loop
