@@ -54,7 +54,10 @@ i.e.
 - EXIT (or QUIT).
 
 ## TECHNICAL SPECIFICATIONS
-- Compiler: z88dk (ZCC) with -O3 optimization.
+- Compiler: z88dk (ZCC) with -O3 optimization using
+  - sccz80 assembler (defaults to __smallc linkage)
+  - classic library
+  - cpm target personality
 - Z80 version `ZMC.COM` and 8080 version `ZMC8080.COM` available.
 - Terminal: ANSI/VT100 (Full support for real hardware and emulators).
 - Memory: Dynamic Heap management to support large directories.

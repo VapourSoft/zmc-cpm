@@ -37,15 +37,154 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define RUB 0x7F
 
 
-extern uint8_t *CONFIG;
-
 extern uint8_t *LINES;
 extern uint8_t *COLUMNS;
+
+#define FILENAME_LEN 13
+#define SCREEN_HEIGHT (*LINES)
+#define PANEL_WIDTH (*COLUMNS/2)
+#define PANEL_HEIGHT (SCREEN_HEIGHT - 2)
+#define VISIBLE_ROWS (PANEL_HEIGHT - 2)
+#define DEBUG_ROW (SCREEN_HEIGHT+1)
+
+
+#define NUL 0x00
+#define BS  0x08
+#define TAB 0x09
+#define LF  0x0A
+#define CR  0x0D
+#define ESC 0x1B
+#define SPC 0x20
+#define RUB 0x7F
 
 extern uint8_t DEBUG;
 extern uint8_t DEVEL;
 
 enum panel_type{ PAN_NONE = 0, PAN_ACTIVE, PAN_OTHER, PAN_BOTH };
+
+/* CP/M directory entry (32 bytes) */
+typedef struct cpm_dir {
+    uint8_t user;
+    uint8_t name[8]; // F1..F8, hi bit can be user flag
+    uint8_t type[3];  // T1..T3, hi bits are system flags
+    uint8_t ex;
+    uint8_t s1, s2;
+    uint8_t rc;
+    uint8_t map[16];
+} cpm_dir;
+
+
+typedef struct { // CP/M Plus date time format
+    uint16_t date;
+    uint8_t hour;
+    uint8_t minute;
+} datetime;
+
+
+typedef struct { // directory date/time entry
+    datetime crea_acc; // create or access date/time
+    datetime update;   // update date/time
+    uint8_t pw_mode;   // not used
+    uint8_t reserved;  // fill to 10 byte
+} date_time_info;
+
+
+typedef struct { // CP/M Plus directory info for 3 files
+    uint8_t type; // '!'
+    date_time_info dt[3]; // 3x10 byte info
+    uint8_t dummy; // fill to 32 byte
+} date_time_dir;
+
+
+#define B_SEL 0x80
+#define B_ARCH 0x04
+#define B_SYS 0x02
+#define B_RO 0x01
+
+#define DEF_DMA 0x80
+
+typedef struct {
+    char cpmname[FILENAME_LEN]; // "FILENAME.EXT\0"
+    uint8_t attrib; // sel,0,0,0,0,A,S,R
+    uint16_t extent; // extent number, becomes total number of records
+    uint8_t rc; // number of records
+    uint16_t date; // days since 31.12.1977, becomes year
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+} FileEntry;
+
+typedef struct {
+    FileEntry *files;
+    int16_t num_files;
+    int16_t current_idx;
+    int16_t scroll_offset;
+    char drive;
+    uint8_t show_date;
+} Panel;
+
+
+typedef struct {
+    Panel left;
+    Panel right;
+    Panel *active_panel;
+    Panel *inactive_panel;
+} AppState;
+
+#define CMDLINELEN 20
+extern char cmdline[];
+
+extern uint8_t fcb_src[];
+extern uint8_t fcb_dst[];
+
+extern uint16_t MAX_FILES;
+extern AppState App;
+
+void set_invers( void );
+void set_normal( void );
+void show_cursor();
+void hide_cursor();
+void clr_scr( void );
+void goto_xy( uint8_t col, uint8_t row );
+void putchar_xy( uint8_t col, uint8_t row, char c );
+void clr_line_right( void );
+void clr_line_left( void );
+void clr_line( void );
+void line_up( void );
+void line_down( void );
+void page_up( void );
+void page_down( void );
+void first_file( void );
+void last_file( void );
+void copy_cmd( void );
+void delete_cmd( void );
+void select_file( void );
+void select( void );
+void help( void );
+uint8_t parse_function_keys( uint8_t key );
+
+void print_cpm_attrib( uint8_t *ca );
+void draw_header(Panel *p);
+void draw_frame(Panel *p);
+void fill_panel(Panel *p);
+void draw_footer(void);
+void load_directory(Panel *p);
+// void copy_panel( Panel *src, Panel *dst );
+extern uint8_t (*wait_key_hw)(void);
+// int delete_file();
+// int copy_active_file(Panel *src, Panel *dst);
+void draw_file_line(Panel *p, int16_t file_idx);
+void view_file();
+void dump_file();
+// int copy_file_by_index(Panel *src, Panel *dst, int16_t idx);
+void exec_multi_copy(Panel *src, Panel *dst);
+void exec_multi_delete(Panel *p);
+void show_prompt( void );
+void refresh_ui(uint8_t which_panel);
+void other_panel( void );
+void change_drive( char k );
+
 
 /* https://www.seasip.info/Cpm/format22.html
  *
@@ -207,126 +346,4 @@ enum panel_type{ PAN_NONE = 0, PAN_ACTIVE, PAN_OTHER, PAN_BOTH };
  */
 
 
-/* CP/M directory entry (32 bytes) */
-typedef struct cpm_dir {
-    uint8_t user;
-    uint8_t name[8]; // F1..F8, hi bit can be user flag
-    uint8_t type[3];  // T1..T3, hi bits are system flags
-    uint8_t ex;
-    uint8_t s1, s2;
-    uint8_t rc;
-    uint8_t map[16];
-} cpm_dir;
-
-
-typedef struct { // CP/M Plus date time format
-    uint16_t date;
-    uint8_t hour;
-    uint8_t minute;
-} datetime;
-
-
-typedef struct { // directory date/time entry
-    datetime crea_acc; // create or access date/time
-    datetime update;   // update date/time
-    uint8_t pw_mode;   // not used
-    uint8_t reserved;  // fill to 10 byte
-} date_time_info;
-
-
-typedef struct { // CP/M Plus directory info for 3 files
-    uint8_t type; // '!'
-    date_time_info dt[3]; // 3x10 byte info
-    uint8_t dummy; // fill to 32 byte
-} date_time_dir;
-
-
-#define B_SEL 0x80
-#define B_ARCH 0x04
-#define B_SYS 0x02
-#define B_RO 0x01
-
-#define DEF_DMA 0x80
-
-typedef struct {
-    char cpmname[FILENAME_LEN]; // "FILENAME.EXT\0"
-    uint8_t attrib; // sel,0,0,0,0,A,S,R
-    uint16_t extent; // extent number, becomes total number of records
-    uint8_t rc; // number of records
-    uint16_t date; // days since 31.12.1977, becomes year
-    uint8_t month;
-    uint8_t day;
-    uint8_t hour;
-    uint8_t minute;
-} FileEntry;
-
-typedef struct {
-    FileEntry *files;
-    int16_t num_files;
-    int16_t current_idx;
-    int16_t scroll_offset;
-    char drive;
-    uint8_t show_date;
-} Panel;
-
-
-typedef struct {
-    Panel left;
-    Panel right;
-    Panel *active_panel;
-    Panel *inactive_panel;
-} AppState;
-
-#define CMDLINELEN 20
-extern char cmdline[];
-
-extern uint8_t fcb_src[];
-extern uint8_t fcb_dst[];
-
-extern uint16_t MAX_FILES;
-extern AppState App;
-
-void set_invers( void );
-void set_normal( void );
-void show_cursor();
-void hide_cursor();
-void clr_scr( void );
-void goto_xy( uint8_t col, uint8_t row );
-void putchar_xy( uint8_t col, uint8_t row, char c );
-void clr_line_right( void );
-void clr_line_left( void );
-void clr_line( void );
-void line_up( void );
-void line_down( void );
-void page_up( void );
-void page_down( void );
-void first_file( void );
-void last_file( void );
-void copy_file( void );
-void delete_file( void );
-void select_file( void );
-void select( void );
-void help( void );
-uint8_t parse_function_keys( uint8_t key );
-
-void print_cpm_attrib( uint8_t *ca );
-void draw_header(Panel *p);
-void draw_frame(Panel *p);
-void fill_panel(Panel *p);
-void draw_footer(void);
-void load_directory(Panel *p);
-// void copy_panel( Panel *src, Panel *dst );
-extern uint8_t (*wait_key_hw)(void);
-// int delete_file();
-// int copy_active_file(Panel *src, Panel *dst);
-void draw_file_line(Panel *p, int16_t file_idx);
-void view_file();
-void dump_file();
-int copy_file_by_index(Panel *src, Panel *dst, int16_t idx);
-void exec_multi_copy(Panel *src, Panel *dst);
-void exec_multi_delete(Panel *p);
-void show_prompt( void );
-void refresh_ui(uint8_t which_panel);
-void other_panel( void );
-void change_drive( char k );
 #endif

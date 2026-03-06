@@ -1,40 +1,28 @@
 SOURCE = main.c panel.c operations.c vt100.c
 HEADER = zmc.h
 COMS = zmc.com zmc8080.com
-OBJS = main.o panel.o operations.o vt100.o
 
 
-zmc.com: $(OBJS)
-	zcc +cpm -O3 $(OBJS) \
+# ZMC build is using:
+#  The sccz80 assembler (defaults to __smallc linkage)
+#  The classic library
+#  The 'cpm' target personality
+
+
+# the complete build is more compact (~ -500 byte) than the modular build
+zmc.com: $(SOURCE) $(HEADER)
+	zcc +cpm -O3 -vn -Wall \
 	-pragma-output:noprotectmsdos \
 	-pragma-output:noredir \
-	-pragma-define:CRT_STACK_SIZE=1024 \
-	-o $@
-
-
-main.o: main.c zmc.h
-	zcc +cpm -O3 -vn -DAMALLOC -Wall -c $<
-
-panel.o: panel.c zmc.h
-	zcc +cpm -O3 -vn -Wall -c $<
-
-operations.o: operations.c zmc.h
-	zcc +cpm -O3 -vn -Wall -c $<
-
-vt100.o: vt100.c zmc.h
-	zcc +cpm -O3 -vn -Wall -c $<
-
-
-#zmc.com: $(SOURCE) $(HEADER)
-#	zcc +cpm -O3 -vn -DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 -Wall \
-#	$(SOURCE) -o $@
+	-DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 \
+	$(SOURCE) -o $@
 
 
 zmc8080.com: $(SOURCE) $(HEADER)
-	zcc +cpm -clib=8080 -O3 -vn -Di8080 -DAMALLOC -Wall \
+	zcc +cpm -O3 -vn -clib=8080 -Di8080 -Wall \
 	-pragma-output:noprotectmsdos \
 	-pragma-output:noredir \
-	-pragma-define:CRT_STACK_SIZE=1024 \
+	-DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 \
 	$(SOURCE) -o $@
 
 

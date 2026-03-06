@@ -269,12 +269,12 @@ int main(int argc, char** argv) {
         { "DUMP", dump_file },
         { "HEX", dump_file },
 
-        { "COPY", copy_file },
-        { "CP", copy_file },
+        { "COPY", copy_cmd },
+        { "CP", copy_cmd },
 
-        { "DEL", delete_file },
-        { "ERA", delete_file },
-        { "RM", delete_file },
+        { "DEL", delete_cmd },
+        { "ERA", delete_cmd },
+        { "RM", delete_cmd },
 
         { "TOP", first_file },
         { "POS1", first_file },
@@ -353,10 +353,10 @@ int main(int argc, char** argv) {
                 dump_file();
             }
             else if ( k == '5' ) { // <ESC>5
-                copy_file();
+                copy_cmd();
             }
             else if ( k == '8' ) { // <ESC>8
-                delete_file();
+                delete_cmd();
             }
             else if ( k == '0' ) { // <ESC>0 (ZERO)
                 loop = 0;
