@@ -105,22 +105,20 @@ void help() {
 }
 
 
-uint8_t wait_key_bios( void ) {
+int wait_key_bios( void ) {
     // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
-    return k;
+    return bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
 }
 
 
-uint8_t wait_key_bdos( void ) {
+int wait_key_bdos( void ) {
     // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
-    return k;
+    return bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
 }
 
 
 // function pointer, default is BIOS, can be switched to BDOS for CP/M3
-uint8_t (*wait_key_hw)(void) = &wait_key_bios;
+int (*wait_key_hw)(void) = &wait_key_bios;
 
 
 typedef void (*command_func_t)(void);
@@ -287,7 +285,7 @@ int main(int argc, char** argv) {
 
     while( loop ) { // terminal key input loop
         k = wait_key_hw();
-        show_cursor();
+        hide_cursor();
         // printable char go to the prompt line, BS/RUB deletes, CR executes
         if ( k > SPC && k < RUB ) {
             if ( cp < cmdline + CMDLINELEN ) {

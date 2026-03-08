@@ -184,7 +184,7 @@ void show_prompt( void );
 void refresh_ui(uint8_t which_panel);
 void other_panel( void );
 void change_drive( char k );
-
+uint8_t is_on_panel( int16_t idx );
 
 /* https://www.seasip.info/Cpm/format22.html
  *

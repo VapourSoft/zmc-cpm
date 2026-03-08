@@ -284,28 +284,6 @@ static int8_t delete_active_file() {
 }
 
 
-#if 0
-// Copy the selected file(s) to the opposite panel
-static int copy_active_file(Panel *src, Panel *dst) {
-    // any files to copy?
-    if (src->num_files == 0) return -1;
-    // fill the FCBs
-    prepare_fcb(src->files[src->current_idx].cpmname, src, dst);
-    // prepare transfer
-    bdos(19, fcb_dst); // BDOS function 19 (F_DELETE) - delete file
-    if (bdos(15, fcb_src) == 255) return -2; // BDOS function 15 - (F_OPEN) - Open file
-    if (bdos(22, fcb_dst) == 255) return -3; // BDOS function 22 (F_MAKE) - create file
-    // do a sector to sector transfer
-    while (bdos(20, fcb_src) == 0) // BDOS function 20 (F_READ) - read next record
-        // write data in 0x80 (DMA) to DST
-        if (bdos(21, fcb_dst) != 0) break; // BDOS function 21 (F_WRITE) - write next record
-    // finish the transfer
-    bdos(16, fcb_dst); // BDOS function 16 - (F_CLOSE) - Close file
-    return 0;
-}
-#endif
-
-
 static void more( const char *action, const char *file_name ) {
     set_invers();
     printf(" %s: %s (<SPACE>: more | <ESC>: exit) ", action, file_name);
@@ -516,9 +494,10 @@ void exec_multi_copy(Panel *src, Panel *dst) {
                 printf(" [%d/%d] Copying: %s ", done, marked, src->files[i].cpmname);
                 copy_file_by_name(src, dst, src->files[i].cpmname );
                 src->files[i].attrib &= ~B_SEL;
+                if ( is_on_panel( i ) )
+                    draw_file_line( src, i ); // remove the visible '*' marks
             }
         }
-        fill_panel( *src ); // remove the '*' marks
     }
     load_directory(dst);
     // the refresh will be done by main.c after calling this function.
@@ -605,6 +584,8 @@ void delete_cmd() {
 
 
 void change_drive( char k ) {
+    if ( App.active_panel->drive == k )
+        return;
     App.active_panel->drive = k;
     load_directory(App.active_panel);
     refresh_ui( PAN_ACTIVE );

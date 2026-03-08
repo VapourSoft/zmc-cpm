@@ -187,8 +187,8 @@ void show_prompt() {
     goto_xy( 1, PANEL_HEIGHT+1 );
     set_normal();
     printf("%c> %s", App.active_panel->drive, cmdline );
-    show_cursor();
     clr_line_right();
+    show_cursor();
 }
 
 
@@ -206,7 +206,6 @@ void refresh_ui(uint8_t which_panel) {
         fill_panel( App.inactive_panel );
     }
     draw_footer();
-    show_prompt();
 }
 
 void other_panel() {
@@ -220,7 +219,6 @@ void other_panel() {
     // chirurgical update: refresh only the lines with cursors
     draw_file_line(&App.left, App.left.current_idx);
     draw_file_line(&App.right, App.right.current_idx);
-    show_prompt();
 }
 
 
@@ -241,19 +239,23 @@ void select_file() {
 }
 
 
+// is this index on the panel?
+uint8_t is_on_panel( int16_t idx ) {
+    return ( idx >= App.active_panel->scroll_offset
+      && idx < App.active_panel->scroll_offset + VISIBLE_ROWS );
+}
+
+
 void goto_line( int16_t new_idx ) {
     int16_t old_idx = App.active_panel->current_idx;
     if ( new_idx < 0 ||  old_idx == new_idx ) // no files or already there
         return;
     App.active_panel->current_idx = new_idx;
-    // if scrolling, redraw everything; if not, only two lines
-    if ( new_idx < App.active_panel->scroll_offset
-      || new_idx >= App.active_panel->scroll_offset + VISIBLE_ROWS )
-        fill_panel( App.active_panel );
-    else {
+    if ( is_on_panel( new_idx ) ) { // update only two lines
         draw_file_line(App.active_panel, old_idx); // deselect
         draw_file_line(App.active_panel, new_idx); // select
-    }
+    } else // redraw everything
+        fill_panel( App.active_panel );
 
 }
 
