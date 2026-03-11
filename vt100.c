@@ -16,7 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-// interface functions for VT100 terminal output
+// interface functions for VT100 terminal input and output
+// some VT52 keys (up, down, F1, F3, F4) are also recognised
 
 #include <stdint.h>
 #include <stdio.h>
@@ -43,11 +44,12 @@ uint8_t parse_function_keys( uint8_t k ) {
             last_file();
         } else if ( k == '1' ) { // F5 = "<ESC>[15~" / F8 = "<ESC>[19~"
             k = wait_key_hw();
-            if ( k == '5' && wait_key_hw() == '~' ) { // F5 = "<ESC>[15~" COPY
-                copy();
+            if ( ( k == '5' || k == '6' ) && wait_key_hw() == '~' ) {
+                // F5 = "<ESC>[15~" COPY (HACK: minicom sends "<ESC>[16~")
+                copy_cmd();
             } else if ( k == '9' && wait_key_hw() == '~' ) { // F8 = "<ESC>[19~" DELETE
-                delete();
-            } else if ( k > '5' && k < '9' ) {
+                delete_cmd();
+            } else if ( k > '6' && k < '9' ) {
                 wait_key_hw(); // remove '~'
             }
         } else if ( k == '2' ) {
@@ -62,7 +64,7 @@ uint8_t parse_function_keys( uint8_t k ) {
         }
     }
     // the VT100 PF1 ... PF4 keys <ESC>OP ... <ESC>OS
-    else if ( k == 'O' ) {
+    else if ( k == 'O' ) { // char OSCAR
         k = wait_key_hw();
         if ( k == 'P' ) { // F1 = "<ESC>OP" HELP
             help();
@@ -73,6 +75,31 @@ uint8_t parse_function_keys( uint8_t k ) {
         else if ( k == 'S' ) { // F4 = "<ESC>OS" DUMP
             dump_file();
         }
+        // here comes the shirsch style extrapolation of F5, F8, F10
+        else if ( k == 'T' ) { // F5 = "<ESC>OT" DUMP
+            copy_cmd();
+        }
+        else if ( k == 'W' ) { // F8 = "<ESC>OW" DUMP
+            delete_cmd();
+        }
+        else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
+            loop = 0; // ready, leave loop
+        }
+    } // now the VT52 cursor keys and F1, F3, F4
+    else if ( k == 'A' ) { // "<ESC>A" LINE_UP
+        line_up();
+    }
+    else if ( k == 'B' ) { // "<ESC>B" LINE_DOWN
+        line_down();
+    }
+    else if ( k == 'P' ) { // "<ESC>P" F1
+        help();
+    }
+    else if ( k == 'R' ) { // "<ESC>R" F3
+        view_file();
+    }
+    else if ( k == 'S' ) { // "<ESC>R" F4
+        dump_file();
     }
     return loop;
 }

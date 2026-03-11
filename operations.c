@@ -29,13 +29,13 @@ uint8_t fcb_src[36];
 uint8_t fcb_dst[36];
 
 
-void prepare_fcb( char *name, Panel *src, Panel *dst ) {
+static void prepare_fcb( const char *name, Panel *src, Panel *dst ) {
 // setup one or two FCBs for reading, copying or deleting
-    char *name_ptr = name;
+    const char *name_ptr = name;
     if ( src ) {
-        memset(fcb_src, 0, sizeof(fcb_src));
         *fcb_src = (src->drive - 'A') + 1;
         memset(fcb_src+1, ' ', 11);
+        memset(fcb_src+12, 0, sizeof(fcb_src) - 12);
         for( uint8_t j = 0; j < 8 && name_ptr[j] != '.' && name_ptr[j] != '\0'; j++)
             fcb_src[1+j] = name_ptr[j];
         while( *name_ptr && *name_ptr != '.')
@@ -48,9 +48,9 @@ void prepare_fcb( char *name, Panel *src, Panel *dst ) {
     }
     if ( dst ) {
         name_ptr = name;
-        memset(fcb_dst, 0, sizeof(fcb_dst));
         *fcb_dst = (dst->drive - 'A') + 1;
         memset(fcb_dst+1, ' ', 11);
+        memset(fcb_dst+12, 0, sizeof(fcb_dst)-12);
         for( uint8_t j = 0; j < 8 && name_ptr[j] != '.' && name_ptr[j] != '\0'; j++)
             fcb_dst[1+j] = name_ptr[j];
         while( *name_ptr && *name_ptr != '.')
@@ -65,12 +65,12 @@ void prepare_fcb( char *name, Panel *src, Panel *dst ) {
 
 
 // Function to check if a year is leap
-uint8_t is_leap_year(int year) {
+static uint8_t is_leap_year(int year) {
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
 // Array of days in month for normal and leap years
-const int days_in_month[2][12] = {
+static const int days_in_month[2][12] = {
     {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31},  // normal year
     {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}   // leap year
 };
@@ -78,7 +78,7 @@ const int days_in_month[2][12] = {
 // convert CP/M "Days since 1.1.1978" to YYMD
 // input:  date -> DD from CP/M directory
 // return: date -> YYMD
-void days_to_date( void *date ) {
+static void days_to_date( void *date ) {
     uint16_t *cpm_date = (uint16_t *)date;
     uint8_t *cpm_month = (uint8_t *)(date+2);
     uint8_t *cpm_day = (uint8_t *)(date+3);
@@ -154,11 +154,23 @@ void load_directory(Panel *p) {
     p->current_idx = 0;
     p->scroll_offset = 0;
     p->show_date = 0;
+    p->files->cpmname[0] = '\0';
+
+    if ( DEVEL && p->drive == 'P' ) { // simulate empty drive
+        *(p->files[0].cpmname) = '\0';
+        return;
+    }
 
     if (p->drive == '@') // '@' -> select current drive
         p->drive = bdos( 25, fcb_src ) + 'A';
+
     /* 1. change drive to fetch the complete directory */
-    bdos(14, p->drive - 'A');
+    result = bdos(14, p->drive - 'A');
+
+    if ( result ) {
+        p->drive = '?';
+        return;
+    }
 
     /* 2. Prepare FCB to match all files (*.*) and all extents */
     memset(fcb_src, 0, sizeof(fcb_src));
@@ -250,8 +262,9 @@ void load_directory(Panel *p) {
     p->num_files = count;
 }
 
+
 // copy panel content when both panels show the same drive
-void copy_panel( Panel *src, Panel *dst ) {
+static void copy_panel( Panel *src, Panel *dst ) {
     if ( src == dst )
         return;
     memcpy( dst->files, src->files, MAX_FILES *sizeof( FileEntry ) );
@@ -262,8 +275,8 @@ void copy_panel( Panel *src, Panel *dst ) {
 }
 
 
-// Delete the selected file(s) on active panel
-int delete_file() {
+// Delete the active file on active panel
+static int8_t delete_active_file() {
     Panel *p = App.active_panel;
     if (p->num_files == 0) return -1;
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL );
@@ -271,34 +284,7 @@ int delete_file() {
 }
 
 
-// Copy the selected file(s) to the opposite panel
-int copy_file(Panel *src, Panel *dst) {
-    // any files to copy?
-    if (src->num_files == 0) return -1;
-    // fill the FCBs
-    prepare_fcb(src->files[src->current_idx].cpmname, src, dst);
-    // prepare transfer
-    bdos(19, fcb_dst); // BDOS function 19 (F_DELETE) - delete file
-    if (bdos(15, fcb_src) == 255) return -2; // BDOS function 15 - Open directory
-    if (bdos(22, fcb_dst) == 255) return -3; // BDOS function 22 (F_MAKE) - create file
-    // do a sector to sector transfer
-    while (bdos(20, fcb_src) == 0) // BDOS function 20 (F_READ) - read next record
-        // write data in 0x80 (DMA) to DST
-        if (bdos(21, fcb_dst) != 0) break; // BDOS function 21 (F_WRITE) - write next record
-    // finish the transfer
-    bdos(16, fcb_dst); // BDOS function 16 - Close directory
-    return 0;
-}
-
-
-void show_header() {
-    clr_scr();
-    goto_xy( 1, 1 ); // home
-    hide_cursor();
-}
-
-
-void show_footer( const char *action, const char *file_name ) {
+static void more( const char *action, const char *file_name ) {
     set_invers();
     printf(" %s: %s (<SPACE>: more | <ESC>: exit) ", action, file_name);
     set_normal();
@@ -310,14 +296,15 @@ void view_file() {
     Panel *p = App.active_panel;
     int i;
     int line_count = -1;
-    char *name_ptr = p->files[p->current_idx].cpmname;
-    char *temp_ptr;
+    char *name = p->files[p->current_idx].cpmname;
 
-    if (p->num_files == 0) return;
-    show_header();
-    prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
+    clr_scr();
+    goto_xy( 1, 1 ); // home
+    hide_cursor();
+
+    prepare_fcb(name, p, NULL);
     // open and read
-    if (bdos(15, fcb_src) != 255) { // BDOS function 15 - Open directory
+    if (bdos(15, fcb_src) != 255) { // BDOS function 15 - (F_OPEN) - Open file
         while (bdos(20, fcb_src) == 0) { // BDOS function 20 (F_READ) - read next record
             for (i = 0; i < 128; i++) {
                 char c = *((char *)(DEF_DMA + i));
@@ -328,7 +315,7 @@ void view_file() {
                     line_count++;
                     // Pausa cuando se llena la pantalla (aprox VISIBLE_ROWS líneas)
                     if (line_count >= PANEL_HEIGHT) {
-                        show_footer( "VIEW", name_ptr );
+                        more( "VIEW", name );
                         if ( wait_key_hw() == ESC )
                             goto esc_file;
                         putchar( '\r' );
@@ -360,12 +347,13 @@ void dump_file() {
     long address = 0;
     char *name_ptr = p->files[p->current_idx].cpmname;
 
-    if (p->num_files == 0) return;
+    clr_scr();
+    goto_xy( 1, 1 ); // home
+    hide_cursor();
 
-    show_header();
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
 
-    if (bdos(15, fcb_src) != 255) { // BDOS function 15 - Open directory
+    if (bdos(15, fcb_src) != 255) { // BDOS function 15 - (F_OPEN) - Open file
         while (bdos(20, fcb_src) == 0) { // BDOS function 20 (F_READ) - read next record
             for (i = 0; i < 128; i += 16) {
                 printf("%04X  ", (unsigned int)address);
@@ -384,7 +372,7 @@ void dump_file() {
                 line_count++;
 
                 if (line_count >= PANEL_HEIGHT) {
-                    show_footer( "DUMP", name_ptr );
+                    more( "DUMP", name_ptr );
                     if (wait_key_hw() == 27) goto esc_file;
                     putchar( '\r' );
                     clr_line_right();
@@ -406,22 +394,87 @@ esc_file:
 }
 
 
-// copy a specific file by its index
-int copy_file_by_index(Panel *src, Panel *dst, uint16_t f_idx) {
-    prepare_fcb(src->files[f_idx].cpmname, src, dst);
-    bdos(19, fcb_dst); // BDOS function 19 (F_DELETE) - delete file
-    if (bdos(15, fcb_src) == 255) return -1; // BDOS function 15 - Open directory
+// copy a specific file by its name using bdos calls
+static int copy_file_by_name(Panel *src, Panel *dst, const char *name) {
+    prepare_fcb(name, src, dst);
+    bdos(19, fcb_dst);                       // BDOS function 19 (F_DELETE) - delete file
+    if (bdos(15, fcb_src) == 255) return -1; // BDOS function 15 (F_OPEN) - Open file
     if (bdos(22, fcb_dst) == 255) return -1; // BDOS function 22 (F_MAKE) - create file
-    while (bdos(20, fcb_src) == 0) // BDOS function 20 (F_READ) - read next record
-        if (bdos(21, fcb_dst) != 0) break; // BDOS function 21 (F_WRITE) - write next record
-    bdos(16, fcb_dst); // BDOS function 16 - Close directory
+    uint16_t total = 0;
+    while (bdos(20, fcb_src) == 0) {         // BDOS function 20 (F_READ) - read next record
+        if (bdos(21, fcb_dst) != 0) break;   // BDOS function 21 (F_WRITE) - write next record
+        if ( DEBUG ) {
+            goto_xy( 1, DEBUG_ROW );
+            printf( "copy: %d records", ++total );
+        }
+    }
+    bdos(16, fcb_dst);                       // BDOS function 16 - Close file
     return 0;
 }
 
 
-/* 2. process multi selections */
+#if 0
+// copy a specific file by its name using c fcntl functions
+static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
+    FILE *fsrc, *fdst;
+    uint8_t buffer[128];
+    int16_t recs;
+    char srcname[ FILENAME_LEN + 2 ]; // Add space for drive char and ':'
+    char dstname[ FILENAME_LEN + 2 ];
+    *srcname = src->drive;
+    *(srcname+1) = ':';
+    *dstname = dst->drive;
+    *(dstname+1) = ':';
+    strcpy( srcname+2, name );
+    strcpy( dstname+2, name );
+    if ( DEBUG ) {
+        goto_xy( 1, DEBUG_ROW );
+        clr_line_right();
+        printf( "copy: %s %s", srcname, dstname );
+    }
+    fsrc = fopen( srcname, "rb" );
+    fdst = fopen( dstname, "wb" );
+    if ( fsrc && fdst ) {
+        int total = 0;
+        while( recs = ( fread( buffer, 128, 1, fsrc ) ) ) {
+            total += recs;
+            if ( DEBUG ) {
+                goto_xy( 41, DEBUG_ROW );
+                printf( "%d records", total );
+            }
+            fwrite( buffer, 128, recs, fdst );
+        }
+    }
+    else
+        if ( DEBUG ) {
+            goto_xy( 61, DEBUG_ROW );
+            printf( "error: %p %p", fsrc, fdst );
+        }
+    fclose( fsrc );
+    fclose( fdst );
+    // this call is neccessary, otherwise the system becomes inconsistent (???)
+    bdos( 13, 0 ); // (DRV_ALLRESET) - Reset discs
+    // TODO: reset drive
+
+    return 0;
+}
+#endif
+
+
+uint8_t yes_no() {
+    char k = wait_key_hw();
+    return (k == 'y' || k == 'Y');
+}
+
+
+// process multi selections
 void exec_multi_copy(Panel *src, Panel *dst) {
     int i, marked = 0, done = 0;
+
+    if ( DEBUG ) {
+        goto_xy( 1, SCREEN_HEIGHT + 1 ); // debugging line
+        printf( "copy" );
+    }
 
     for (i = 0; i < src->num_files; i++) {
         if (src->files[i].attrib & B_SEL) ++marked;
@@ -429,28 +482,27 @@ void exec_multi_copy(Panel *src, Panel *dst) {
 
     if (marked == 0) {
         goto_xy( 1, SCREEN_HEIGHT-1 );
-        set_invers();
+        clr_line_right();
         printf(" Copying: %s... ", src->files[src->current_idx].cpmname);
-        set_normal();
-        copy_file_by_index(src, dst, src->current_idx);
+        copy_file_by_name(src, dst, src->files[src->current_idx].cpmname );
     } else {
         for (i = 0; i < src->num_files; i++) {
             if (src->files[i].attrib & B_SEL) {
                 done++;
                 goto_xy( 1, SCREEN_HEIGHT-1 );
-                set_invers();
+                clr_line_right();
                 printf(" [%d/%d] Copying: %s ", done, marked, src->files[i].cpmname);
-                set_normal();
-
-                // USAR EL NOMBRE CORRECTO AQUÍ:
-                copy_file_by_index(src, dst, i);
+                copy_file_by_name(src, dst, src->files[i].cpmname );
                 src->files[i].attrib &= ~B_SEL;
+                if ( is_on_panel( i ) )
+                    draw_file_line( src, i ); // remove the visible '*' marks
             }
         }
     }
     load_directory(dst);
     // the refresh will be done by main.c after calling this function.
 }
+
 
 void exec_multi_delete(Panel *p) {
     int i, marked = 0, done = 0;
@@ -463,7 +515,7 @@ void exec_multi_delete(Panel *p) {
         goto_xy( 1, SCREEN_HEIGHT-1 );
         clr_line_right();
         printf( " Deleting: %s... ", p->files[p->current_idx].cpmname );
-        delete_file( p );
+        delete_active_file( p );
     } else {
         // batch deletion
         for (i = 0; i < p->num_files; i++) {
@@ -482,3 +534,60 @@ void exec_multi_delete(Panel *p) {
     goto_xy( 1, SCREEN_HEIGHT-1 );
     clr_line_right();
 }
+
+
+void copy_cmd() {
+    if ( !App.active_panel->num_files         // nothing to do
+       || App.left.drive == App.right.drive ) // cannot copy to same drive
+        return;
+    Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
+    // clear dialog box and ask
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+    printf(" COPY SELECTED FILE(S) TO %c:? (Y/N) ", dest->drive);
+    if ( yes_no() ) {
+        // Y: copy multiple files
+        exec_multi_copy(App.active_panel, dest);
+        fill_panel( App.inactive_panel );
+    }
+    // clear status line
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+}
+
+
+void delete_cmd() {
+    if ( !App.active_panel->num_files ) // nothing to do
+        return;
+    // clear dialog box and ask
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+    printf(" DELETE SELECTED FILE(S)? (Y/N) " );
+    if ( yes_no() ) {
+        // Y: call master function
+        exec_multi_delete(App.active_panel);
+        load_directory(App.active_panel);
+        fill_panel( App.active_panel );
+        // if left == right update both panels
+        if ( App.left.drive == App.right.drive ) {
+            if ( App.active_panel == &App.left )
+                copy_panel( &App.left, &App.right );
+            else
+                copy_panel( &App.right, &App.left );
+            fill_panel( App.inactive_panel );
+        }
+    }
+    // clear status line
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    clr_line_right();
+}
+
+
+void change_drive( char k ) {
+    if ( App.active_panel->drive == k )
+        return;
+    App.active_panel->drive = k;
+    load_directory(App.active_panel);
+    refresh_ui( PAN_ACTIVE );
+}
+

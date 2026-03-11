@@ -21,27 +21,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include "zmc.h"
 
-void draw_frame(int x, int y, int w, int h, char *title) {
-    int i;
-    putchar_xy( x, y, '+' );
-    for(i=0; i<w-2; ++i)
-        putchar('-');
-    putchar('+');
-    goto_xy( x+2, y );
-    printf("[ %s ]", title);
-    for(i=1; i<h-1; ++i) {
-        putchar_xy( x, y+i, '|' );
-        putchar_xy( x+w-1, y+i, '|' );
-    }
-    putchar_xy( x , y+h-1, '+' );
-    for( i = 0; i < w-2; ++i )
-        putchar( '-' );
-    putchar('+');
-}
 
-
-void draw_file_info( Panel *p, int f_idx ) {
-    if (p->active && f_idx == p->current_idx)
+// draw one line with file name, attributes, size, date etc.
+void draw_file_info( Panel *p, int16_t f_idx ) {
+    if ( App.active_panel == p && p->num_files && f_idx == p->current_idx)
         set_invers();
 
     printf("%c%-12s %c%c%c",
@@ -52,7 +35,9 @@ void draw_file_info( Panel *p, int f_idx ) {
            p->files[f_idx].attrib & B_ARCH ? 'A' : ' '
     );
 
-    if ( p->files[f_idx].extent < 512) // file size < 64K
+    if ( !*(p->files[f_idx].cpmname) )
+        printf( "      " );
+    else if ( p->files[f_idx].extent < 512) // file size < 64K
         printf( "%6u", p->files[f_idx].extent << 7 ); // *128
     else if ( p->files[f_idx].extent < 7812) // 64K <= file size < 1E6
         printf( "%6lu", (uint32_t)p->files[f_idx].extent << 7 ); // *128 -> uint32_t
@@ -77,14 +62,14 @@ void draw_file_info( Panel *p, int f_idx ) {
             while ( w-- )
                 putchar( ' ' );
         }
-        if (p->active && f_idx == p->current_idx)
+        if ( App.active_panel == p && f_idx == p->current_idx)
             set_normal();
         // fill to end of panel line
         w = PANEL_WIDTH < 42 ? PANEL_WIDTH - 39 : PANEL_WIDTH - 42;
         while ( w-- )
             putchar( ' ' );
     } else { // no date for complete drive or panel too narrow
-        if (p->active && f_idx == p->current_idx)
+        if ( App.active_panel == p && f_idx == p->current_idx)
             set_normal();
         w = PANEL_WIDTH - 25;
         while ( w-- )
@@ -93,9 +78,49 @@ void draw_file_info( Panel *p, int f_idx ) {
 }
 
 
-void draw_panel(Panel *p, uint8_t x_offset) {
+// draw the empty wire frame
+void draw_frame( Panel *p) {
     uint8_t i;
-    char title[10];
+
+    if ( &App.left == p )
+        goto_xy( 1, 1 );
+    else
+        goto_xy( PANEL_WIDTH + 1, 1 );
+    putchar(' ');
+    i = PANEL_WIDTH - 2;
+    while ( i-- )
+        putchar('_');
+    putchar(' ');
+    for (i = 0; i < VISIBLE_ROWS; i++) {
+        int16_t f_idx = i + p->scroll_offset;
+        if ( &App.left == p ) {
+            putchar_xy( PANEL_WIDTH , i + 2, '|' );
+            goto_xy( PANEL_WIDTH - 1 , i + 2 );
+            clr_line_left();
+            putchar_xy( 1, i + 2, '|' );
+        } else {
+            putchar_xy( PANEL_WIDTH + 1, i + 2, '|' );
+            clr_line_right();
+            putchar_xy( 2 * PANEL_WIDTH, i + 2, '|' );
+        }
+    }
+    if ( &App.left == p )
+        goto_xy( 1, PANEL_HEIGHT );
+    else
+        goto_xy( PANEL_WIDTH + 1, PANEL_HEIGHT );
+    i = PANEL_WIDTH - 2;
+    putchar( '|' );
+    while ( i-- )
+        putchar( '_' );
+    putchar('|');
+}
+
+
+// fill the prepared panel with the file lines
+void fill_panel( Panel *p ) {
+    uint8_t x_offset = p == &App.left ? 2 : PANEL_WIDTH + 2;
+    uint8_t i;
+
     if (p->current_idx < p->scroll_offset) {
         p->scroll_offset = p->current_idx;
     }
@@ -103,27 +128,172 @@ void draw_panel(Panel *p, uint8_t x_offset) {
         p->scroll_offset = p->current_idx - (VISIBLE_ROWS - 1);
     }
     set_normal();
-    sprintf(title, " DISK %c: ", p->drive);
-    draw_frame(x_offset, 1, PANEL_WIDTH, PANEL_HEIGHT, title);
-
     for (i = 0; i < VISIBLE_ROWS; i++) {
         int f_idx = i + p->scroll_offset;
-        goto_xy( x_offset + 1, i + 2 );
-        if (f_idx < p->num_files)
+        if (f_idx < p->num_files) {
+            goto_xy( x_offset, i + 2 );
             draw_file_info( p, f_idx );
-        else {
-            uint8_t w = PANEL_WIDTH-2;
-            while ( w-- )
-                putchar( ' ' );
         }
     }
 }
 
 
-void draw_file_line(Panel *p, uint8_t x_offset, uint16_t file_idx) {
+// put one file info at defined position
+void draw_file_line(Panel *p, int16_t file_idx) {
+    uint8_t x_offset = p == &App.left ? 2 : PANEL_WIDTH + 2;
     if (file_idx >= p->scroll_offset && file_idx < p->scroll_offset + VISIBLE_ROWS) {
-        goto_xy( x_offset + 1, file_idx - p->scroll_offset + 2 );
+        goto_xy( x_offset, file_idx - p->scroll_offset + 2 );
         draw_file_info( p, file_idx );
     }
+}
+
+
+void print_cpm_attrib( uint8_t *ca) {
+    // show file attributes
+    printf( "%c%c%c",
+            *ca++ > 0x7F ? 'R' : ' ', // READ ONLY
+            *ca++ > 0x7F ? 'S' : ' ', // SYSTEM
+            *ca++ > 0x7F ? 'B' : ' '  // file was BACKED UP
+    );
+}
+
+
+// show the disk on top of panel, mark the active panel
+void draw_header( Panel *p ) {
+    uint8_t x_offset = p == &App.left ? 3 : PANEL_WIDTH + 3;
+    goto_xy( x_offset, 1 );
+    if ( p == App.active_panel )
+        set_invers();
+    printf( "[ DISK %c: ]", p->drive );
+    if ( p == App.active_panel )
+        set_normal();
+}
+
+
+// show function key help
+void draw_footer( void ) {
+    goto_xy( 1, PANEL_HEIGHT+2 );
+    set_invers();
+    if ( PANEL_WIDTH >= 40 ) {
+        printf("| A: - P: | TAB:Sw | F1:Help | F3:View | F4:Dump | F5:Copy | F8:Del | F10:Exit |");
+    } else if ( PANEL_WIDTH >= 30 ) {
+        printf("A:-P:|TAB:Sw|F1:Help|F3:View|F4:Dump|F5:Copy|F8:Del|F10:Exit");
+    }
+}
+
+
+// cmd line with active drive
+void show_prompt() {
+    goto_xy( 1, PANEL_HEIGHT+1 );
+    set_normal();
+    printf("%c> %s", App.active_panel->drive, cmdline );
+    clr_line_right();
+    show_cursor();
+}
+
+
+// update none, one or both panels
+void refresh_ui(uint8_t which_panel) {
+    hide_cursor();
+    if ( which_panel & 0b01) {
+        draw_frame( App.active_panel );
+        draw_header( App.active_panel );
+        fill_panel( App.active_panel );
+    }
+    if ( which_panel & 0b10) {
+        draw_frame( App.inactive_panel );
+        draw_header( App.inactive_panel );
+        fill_panel( App.inactive_panel );
+    }
+    draw_footer();
+}
+
+void other_panel() {
+    // change focus
+    Panel *tmp = App.active_panel;
+    App.active_panel = App.inactive_panel;
+    App.inactive_panel = tmp;
+    draw_header( &App.left );
+    draw_header( &App.right );
+
+    // chirurgical update: refresh only the lines with cursors
+    draw_file_line(&App.left, App.left.current_idx);
+    draw_file_line(&App.right, App.right.current_idx);
+}
+
+
+void select_file() {
+    if ( !App.active_panel->num_files )
+        return;
+    int16_t idx = App.active_panel->current_idx;
+
+    // A. invert the selection state in memory
+    App.active_panel->files[idx].attrib ^= B_SEL;
+
+    // B. redraw current line to show '*'
+    // IMPORTANT: current_idx was not changed, line is drawn with cursor.
+    draw_file_line(App.active_panel, idx);
+
+    // C. move the cursor to the next line
+    line_down();
+}
+
+
+// is this index on the panel?
+uint8_t is_on_panel( int16_t idx ) {
+    return ( idx >= App.active_panel->scroll_offset
+      && idx < App.active_panel->scroll_offset + VISIBLE_ROWS );
+}
+
+
+void goto_line( int16_t new_idx ) {
+    int16_t old_idx = App.active_panel->current_idx;
+    if ( new_idx < 0 ||  old_idx == new_idx ) // no files or already there
+        return;
+    App.active_panel->current_idx = new_idx;
+    if ( is_on_panel( new_idx ) ) { // update only two lines
+        draw_file_line(App.active_panel, old_idx); // deselect
+        draw_file_line(App.active_panel, new_idx); // select
+    } else // redraw everything
+        fill_panel( App.active_panel );
+
+}
+
+
+void line_up() {
+    if (App.active_panel->current_idx > 0)
+        goto_line( App.active_panel->current_idx - 1 );
+}
+
+
+void line_down() {
+    if (App.active_panel->current_idx + 1 < App.active_panel->num_files )
+        goto_line( App.active_panel->current_idx + 1 );
+}
+
+
+void page_up() {
+    if (App.active_panel->current_idx >= VISIBLE_ROWS)
+        goto_line( App.active_panel->current_idx - VISIBLE_ROWS );
+    else
+        goto_line( 0 );
+}
+
+
+void page_down() {
+    if ( App.active_panel->current_idx + VISIBLE_ROWS < App.active_panel->num_files )
+        goto_line( App.active_panel->current_idx + VISIBLE_ROWS );
+    else
+        goto_line( App.active_panel->num_files - 1 );
+}
+
+
+void first_file() {
+    goto_line( 0 );
+}
+
+
+void last_file() {
+    goto_line( App.active_panel->num_files - 1 );
 }
 

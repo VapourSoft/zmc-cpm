@@ -32,187 +32,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "zmc.h"
 
 
-extern AppState App;
+// // the status of both panels
+AppState App;
 
+// default configuration, can be patched for the target terminal
+// get the address of the config values with "zmc --config
+const uint8_t CONFIG[] = { // 80x40
+    80,  // Columns
+    24   // Lines
+};
 
-uint8_t wait_key_bios( void ) {
-    // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
-    if ( k == RUB ) // translate RUB to BS
-        k = BS;
-    return k;
-}
+const uint8_t *COLUMNS = CONFIG;
+const uint8_t *LINES = CONFIG+1;
 
+char cmdline[CMDLINELEN+1];
 
-uint8_t wait_key_bdos( void ) {
-    // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
-    uint8_t k = bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
-    if ( k == RUB ) // translate RUB to BS
-        k = BS;
-    return k;
-}
+uint8_t DEBUG = 0; // increase with "zmc --debug", can be used to enable messages etc.
+uint8_t DEVEL = 0; // increase with "zmc --devel", can be used to enable new features
 
-
-// function pointer, default is BIOS, can be switched to BDOS for CP/M3
-uint8_t (*wait_key_hw)(void) = &wait_key_bios;
-
-
-void other_panel() {
-    int old_left_idx = App.left.current_idx;
-    int old_right_idx = App.right.current_idx;
-
-    // change focus
-    App.left.active = !App.left.active;
-    App.right.active = !App.right.active;
-    App.active_panel = App.left.active ? &App.left : &App.right;
-
-    // chirurgical update: refresh only the lines with cursors
-    draw_file_line(&App.left, 1, old_left_idx);
-    draw_file_line(&App.right, PANEL_WIDTH+1, old_right_idx);
-    show_prompt();
-}
-
-
-void change_drive( char k ) {
-    App.active_panel->drive = k;
-    load_directory(App.active_panel);
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-void select_file() {
-    int idx = App.active_panel->current_idx;
-    int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-
-    // A. invert the selection state in memory
-    App.active_panel->files[idx].attrib ^= B_SEL;
-
-    // B. redraw current line to show '*'
-    // IMPORTANT: current_idx was not changed, line is drawn with cursor.
-    draw_file_line(App.active_panel, offset, idx);
-
-    // C. move the cursor to the next line
-    if (App.active_panel->current_idx < App.active_panel->num_files - 1) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx++;
-
-        // D. redraw previous line (w/o cursor but with '*')
-        draw_file_line(App.active_panel, offset, old_idx);
-
-        // E. redraw new line (with cursor)
-        draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-    }
-}
-
-
-void line_up() {
-    if (App.active_panel->current_idx > 0) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx--;
-
-        // if scrolling, redraw everything; if not, only two lines
-        if (App.active_panel->current_idx < App.active_panel->scroll_offset) {
-            refresh_ui( PAN_ACTIVE );
-        } else {
-            int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-            draw_file_line(App.active_panel, offset, old_idx);
-            draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-        }
-    }
-}
-
-
-void line_down() {
-    if (App.active_panel->current_idx < App.active_panel->num_files - 1) {
-        int old_idx = App.active_panel->current_idx;
-        App.active_panel->current_idx++;
-
-        // if scrolling, redraw everything; if not, only two lines
-        if (App.active_panel->current_idx >= App.active_panel->scroll_offset + VISIBLE_ROWS) {
-            refresh_ui( PAN_ACTIVE );
-        } else {
-            int offset = (App.active_panel == &App.left) ? 1 : PANEL_WIDTH+1;
-            draw_file_line(App.active_panel, offset, old_idx);
-            draw_file_line(App.active_panel, offset, App.active_panel->current_idx);
-        }
-    }
-}
-
-
-void page_up() {
-    if (App.active_panel->current_idx >= VISIBLE_ROWS/2)
-        App.active_panel->current_idx -= VISIBLE_ROWS/2;
-    else
-        App.active_panel->current_idx = 0;
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-void page_down() {
-    App.active_panel->current_idx += VISIBLE_ROWS/2;
-    if (App.active_panel->current_idx >= App.active_panel->num_files)
-        App.active_panel->current_idx = App.active_panel->num_files - 1;
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-void first_file() {
-    App.active_panel->current_idx = 0;
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-void last_file() {
-    App.active_panel->current_idx = App.active_panel->num_files - 1;
-    refresh_ui( PAN_ACTIVE );
-}
-
-
-uint8_t yes_no() {
-    char k = wait_key_hw();
-    return (k == 'y' || k == 'Y');
-}
-
-
-void copy() {
-    if ( App.left.drive == App.right.drive ) // cannot copy to same drive
-        return;
-    Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
-    // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    printf(" COPY SELECTED FILE(S) TO %c:? (Y/N) ", dest->drive);
-    if ( yes_no() )
-        // Y: copy multiple files
-        exec_multi_copy(App.active_panel, dest);
-    // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    refresh_ui( PAN_OTHER );
-}
-
-
-void delete() {
-    // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    printf(" DELETE SELECTED FILE(S)? (Y/N) " );
-    if ( yes_no() ) {
-        // Y: call master function
-        exec_multi_delete(App.active_panel);
-        load_directory(App.active_panel);
-        // if left == right update both panels
-        if ( App.left.drive == App.right.drive )
-            if ( App.left.active )
-                copy_panel( &App.left, &App.right );
-            else
-                copy_panel( &App.right, &App.left );
-    }
-    // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
-    refresh_ui( App.left.drive == App.right.drive ? PAN_BOTH : PAN_ACTIVE ); // file(s) deleted, refresh active panel
-}
+uint16_t MAX_FILES = 0;
 
 
 void help() {
@@ -239,32 +77,49 @@ void help() {
 #else
     puts( "= ZMC 1.3 (8080 version) - Volney Torres =" );
 #endif
-
+    const uint8_t helppos = 40;
     goto_xy( 1, line );
     printf( "A: ... P:" );
-    goto_xy( 32, line++ );
+    goto_xy( helppos, line++ );
     puts( "Select drive" );
     printf( "[TAB]" );
-    goto_xy( 32, line++ );
+    goto_xy( helppos, line++ );
     puts( "Change panel" );
-    printf( "[F3], TYPE, VIEW, CAT");
-    goto_xy( 32, line++ );
+    printf( "[F3],  [ESC]3, TYPE, VIEW, CAT");
+    goto_xy( helppos, line++ );
     puts( "Show file" );
-    printf( "[F4], DUMP, HEX" );
-    goto_xy( 32, line++ );
+    printf( "[F4],  [ESC]4, DUMP, HEX" );
+    goto_xy( helppos, line++ );
     puts( "Hexdump file" );
-    printf( "[F5], COPY, CP" );
-    goto_xy( 32, line++ );
+    printf( "[F5],  [ESC]5, COPY, CP" );
+    goto_xy( helppos, line++ );
     puts( "Copy file(s)");
-    printf( "[F8], DEL, ERA, RM" );
-    goto_xy( 32, line++ );
+    printf( "[F8],  [ESC]8, [ESC]3, DEL, ERA, RM" );
+    goto_xy( helppos, line++ );
     puts( "Delete file(s)" );
-    printf( "[F9], [ESC][ESC], QUIT, EXIT" );
-    goto_xy( 32, line++ );
+    printf( "[F10], [ESC]0, [ESC][ESC], QUIT, EXIT" );
+    goto_xy( helppos, line++ );
     puts( "Exit" );
     wait_key_hw();
     refresh_ui( PAN_BOTH );
 }
+
+
+int wait_key_bios( void ) {
+    // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
+    return bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
+}
+
+
+int wait_key_bdos( void ) {
+    // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
+    return bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
+}
+
+
+// function pointer, default is BIOS, can be switched to BDOS for CP/M3
+int (*wait_key_hw)(void) = &wait_key_bios;
+
 
 typedef void (*command_func_t)(void);
 
@@ -305,7 +160,11 @@ int main(int argc, char** argv) {
     mallinfo( &total, &largest );
 
     // calculate number of file entries
-    MAX_FILES = largest / sizeof( FileEntry ) / 2;
+    MAX_FILES = largest / sizeof( FileEntry ) / 2 - 1;
+
+    // Set current drive for both panels
+    char drive_left  = bdos( 25, fcb_src ) + 'A'; // get current drive
+    char drive_right = drive_left;
 
     // cmd line argument "--config" shows address of screen size constants
     // in zmc.com to help the user to patch with a HEX editor, e.g. BE.
@@ -342,8 +201,16 @@ int main(int argc, char** argv) {
                     return 0;
                 esc = k == ESC; // remember <ESC>
             }
+        } else if ( *argv[0] >= 'A' && *argv[0] <= 'P' ) {
+             if ( argc == 1 )
+                 drive_right = *argv[0];
+             else
+                 drive_left  = *argv[0];
         }
     }
+
+    if ( DEBUG )
+        --*LINES; // debugging output in the last line
 
     FileEntry *f_left;
     FileEntry *f_right;
@@ -359,19 +226,29 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    clr_scr();
+    hide_cursor();
+
     App.left.files = f_left;
     App.right.files = f_right;
+    App.left.drive = drive_left;
+    App.right.drive = drive_right;
 
-    App.left.drive = '@'; App.left.active = 1; // current drive
-    App.right.drive = '@'; App.right.active = 0; // current drive
     App.active_panel = &App.left;
+    App.inactive_panel = &App.right;
 
-    load_directory(&App.left);
-    load_directory(&App.right);
-    clr_scr();
-    goto_xy( 1, 1 );
-    hide_cursor();
-    refresh_ui( PAN_BOTH ); // refresh/init both panels
+    draw_frame( &App.left );
+    draw_header( &App.left );
+    load_directory( &App.left );
+    fill_panel( &App.left);
+
+    draw_frame( &App.right );
+    draw_header(&App.right);
+    load_directory( &App.right );
+    fill_panel( &App.right );
+
+    draw_footer();
+    show_prompt();
 
     uint8_t loop = 1;
     uint8_t k;
@@ -390,12 +267,12 @@ int main(int argc, char** argv) {
         { "DUMP", dump_file },
         { "HEX", dump_file },
 
-        { "COPY", copy },
-        { "CP", copy },
+        { "COPY", copy_cmd },
+        { "CP", copy_cmd },
 
-        { "DEL", delete },
-        { "ERA", delete },
-        { "RM", delete },
+        { "DEL", delete_cmd },
+        { "ERA", delete_cmd },
+        { "RM", delete_cmd },
 
         { "TOP", first_file },
         { "POS1", first_file },
@@ -408,14 +285,14 @@ int main(int argc, char** argv) {
 
     while( loop ) { // terminal key input loop
         k = wait_key_hw();
-        show_cursor();
-        // printable char go to the prompt line, BS deletes, CR executes
-        if ( k > SPC ) {
+        hide_cursor();
+        // printable char go to the prompt line, BS/RUB deletes, CR executes
+        if ( k > SPC && k < RUB ) {
             if ( cp < cmdline + CMDLINELEN ) {
                 *cp++ = toupper( k );
                 *cp = '\0';
             }
-        } else if ( k == BS ) {
+        } else if ( k == BS || k == RUB ) {
             if ( cp > cmdline )
                 *--cp = '\0';
         } else if ( k == CR ) { // cmd line parser
@@ -460,10 +337,31 @@ int main(int argc, char** argv) {
         // now the multi character function keys starting with <ESC>
         else if ( k == ESC ) { // ESC sequences
             k = wait_key_hw();
-            if ( k == ESC ) // <ESC><ESC>
+            if ( k == ESC ) { // <ESC><ESC>
                 loop = 0; // quit program
-            else
+            }
+            // now comes the mc style coding ESC1...ESC0 as proposed by SvenMb
+            else if ( k == '1' ) { // <ESC>1
+                help();
+            }
+            else if ( k == '3' ) { // <ESC>3
+                view_file();
+            }
+            else if ( k == '4' ) { // <ESC>4
+                dump_file();
+            }
+            else if ( k == '5' ) { // <ESC>5
+                copy_cmd();
+            }
+            else if ( k == '8' ) { // <ESC>8
+                delete_cmd();
+            }
+            else if ( k == '0' ) { // <ESC>0 (ZERO)
+                loop = 0;
+            }
+            else {
                 loop = parse_function_keys( k ); // VT100 function keys
+            }
         }
         if ( loop )
             show_prompt();
