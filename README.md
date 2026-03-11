@@ -23,18 +23,18 @@ global compatibility.
 
 ## KEYMAP
 
-| KEY | Function |
-|
-| `[Arrows Up/Down]`   | Navigate the file list.
-| `[TAB]`              | Switch active panel (A <-> B).
-| `[Space]`            | Tag file for batch operations (*).
-| `[F1]`  or `[ESC]1`  | Quick HELP and version credits.
-| `[F3]`  or `[ESC]3`  | VIEW file with MORE/ESC support.
-| `[F4]`  or `[ESC]4`  | DUMP file with MORE/ESC support.
-| `[F5]`  or `[ESC]5`  | Batch COPY.
-| `[F8]`  or `[ESC]8`  | Batch DELETE.
-| `[F10]` or `[ESC]0`  | EXIT to system prompt.
-| `[ESC][ESC]`         | EXIT to system prompt.
+|  KEY                 | Function                          |
+|----------------------|-----------------------------------|
+| `[Arrows Up/Down]`   | Navigate the file list            |
+| `[TAB]`              | Switch active panel (A <-> B)     |
+| `[Space]`            | Tag file for batch operations (*) |
+| `[F1]`  or `[ESC]1`  | Quick HELP and version credits    |
+| `[F3]`  or `[ESC]3`  | VIEW file with MORE/ESC support   |
+| `[F4]`  or `[ESC]4`  | DUMP file with MORE/ESC support   |
+| `[F5]`  or `[ESC]5`  | Batch COPY                        |
+| `[F8]`  or `[ESC]8`  | Batch DELETE                      |
+| `[F10]` or `[ESC]0`  | EXIT to system prompt             |
+| `[ESC][ESC]`         | EXIT to system prompt             |
 
 The key handling suports the standard `VT100` cursor and function keys as well as
 the wordstar key bindings:
