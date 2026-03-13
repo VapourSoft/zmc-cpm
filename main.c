@@ -30,20 +30,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <malloc.h>
 #include <cpm.h>
 #include "zmc.h"
-
+#include "internal_env.h"
 
 // // the status of both panels
 AppState App;
 
 // default configuration, can be patched for the target terminal
 // get the address of the config values with "zmc --config
-const uint8_t CONFIG[] = { // 80x40
-    80,  // Columns
-    24   // Lines
-};
+// const uint8_t CONFIG[] = { // 80x40
+//     80,  // Columns
+//     24   // Lines
+// };
 
-const uint8_t *COLUMNS = CONFIG;
-const uint8_t *LINES = CONFIG+1;
+//extern uint8_t _COLUMNS;
+// extern uint8_t _LINES;
 
 char cmdline[CMDLINELEN+1];
 
@@ -55,10 +55,10 @@ uint16_t MAX_FILES = 0;
 
 void help() {
     uint8_t line = 1;
-    hide_cursor();
-    set_normal();
-    clr_scr();
-    goto_xy( 1, line++ );
+    curoff();
+    stndend();
+    cls();
+    gotoxy( (line++)<<8 | 1 );
     if ( SCREEN_HEIGHT >= 20) {
         puts( "                           " );
         puts( " #######  #     #   #####  " );
@@ -72,33 +72,29 @@ void help() {
         line = 12;
     }
 
-#ifndef i8080
-    puts( "= ZMC 1.3 - Volney Torres =" );
-#else
-    puts( "= ZMC 1.3 (8080 version) - Volney Torres =" );
-#endif
+    puts( "= ZMC 1.3 - Volney Torres - Ho-Ro - shirsch =" );
     const uint8_t helppos = 40;
-    goto_xy( 1, line );
+    gotoxy( line<<8 | 1 );
     printf( "A: ... P:" );
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos);
     puts( "Select drive" );
     printf( "[TAB]" );
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Change panel" );
     printf( "[F3],  [ESC]3, TYPE, VIEW, CAT");
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Show file" );
     printf( "[F4],  [ESC]4, DUMP, HEX" );
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Hexdump file" );
     printf( "[F5],  [ESC]5, COPY, CP" );
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Copy file(s)");
-    printf( "[F8],  [ESC]8, [ESC]3, DEL, ERA, RM" );
-    goto_xy( helppos, line++ );
+    printf( "[F8],  [ESC]8, DEL, ERA, RM" );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Delete file(s)" );
     printf( "[F10], [ESC]0, [ESC][ESC], QUIT, EXIT" );
-    goto_xy( helppos, line++ );
+    gotoxy( (line++)<<8 | helppos );
     puts( "Exit" );
     wait_key_hw();
     refresh_ui( PAN_BOTH );
@@ -148,9 +144,9 @@ int main(int argc, char** argv) {
         bdos( 109, 0x0A ); // C_MODE, ignore ^C and ^S
         wait_key_hw = &wait_key_bdos; // use BDOS RAWIO instead of BIOS CONIO
         uint8_t scbpb[ 4 ] = { 0x1A, 0, 0, 0 }; // SCB parameter block, get col - 1
-        *COLUMNS = bdos( 49, scbpb ) + 1;
+        COLUMNS = bdos( 49, scbpb ) + 1;
         scbpb[0] = 0x1C; // lines - 1
-        *LINES = bdos( 49, scbpb ) + 1;
+        LINES = bdos( 49, scbpb ) + 1;
     }
 
     uint16_t total;
@@ -175,14 +171,35 @@ int main(int argc, char** argv) {
 #ifdef i8080
             printf( "8080 code\n" );
 #endif
-            printf( "COLUMNS @ 0x%04X: %d\n", COLUMNS - 0x100, *COLUMNS );
-            printf( "LINES @ 0x%04X: %d\n", LINES - 0x100, *LINES );
+            printf( "COLUMNS @ 0x%04X: %d\n", &COLUMNS - 0x100, COLUMNS );
+            printf( "LINES @ 0x%04X: %d\n", &LINES - 0x100, LINES );
             printf( "MAX_FILES: %u\n", MAX_FILES );
             return 0;
         } else if ( !strcmp( *argv, "--DEVEL" ) ) {
             ++DEVEL;
         } else if ( !strcmp( *argv, "--DEBUG" ) ) {
             ++DEBUG;
+        } else if ( !stricmp( *argv, "--ENV" ) ) {
+          ++argv;
+          // &env is location of our internal Z3 environment. The storage is
+          // allocated by linking in internal_env. There really needs to be a
+          // function that checks for native Z and allocates the internal buffer
+          // dynamically only if required (i.e. no native Z3).
+          int fd;
+          if ((fd = open(*argv, O_RDONLY, 0)) > 0) {
+            size_t count = read(fd, (void *)&env, 256);
+            if (count != 256) {
+              printf("Error reading environment file.\n");
+              exit(1);
+            }
+            close(fd);
+            // Reset DMA to default!
+            bdos(26, 0x80);
+            printf("Read environment file: %s\n", *argv);
+          } else {
+            printf("Cannot open environment file: %s\n", *argv);
+            wait_key_hw();
+          }
         } else if ( !strcmp( *argv, "--KEY" ) ) {
             // test for terminal function keys, exit with <ESC><ESC>
             uint8_t k;
@@ -208,9 +225,10 @@ int main(int argc, char** argv) {
                  drive_left  = *argv[0];
         }
     }
+            z3vinit(&env);
 
     if ( DEBUG )
-        --*LINES; // debugging output in the last line
+        --LINES; // debugging output in the last line
 
     FileEntry *f_left;
     FileEntry *f_right;
@@ -226,8 +244,8 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    clr_scr();
-    hide_cursor();
+    cls();
+    curoff();
 
     App.left.files = f_left;
     App.right.files = f_right;
@@ -285,9 +303,9 @@ int main(int argc, char** argv) {
 
     while( loop ) { // terminal key input loop
         k = wait_key_hw();
-        hide_cursor();
+        curoff();
         // printable char go to the prompt line, BS/RUB deletes, CR executes
-        if ( k > SPC && k < RUB ) {
+        if ( ( k > SPC && k < RUB ) || ( k == SPC && *cmdline ) ) {
             if ( cp < cmdline + CMDLINELEN ) {
                 *cp++ = toupper( k );
                 *cp = '\0';
@@ -366,10 +384,10 @@ int main(int argc, char** argv) {
         if ( loop )
             show_prompt();
     } // while ( loop )
-    clr_scr();
-    goto_xy( 1, 1 );
-    show_cursor();
-    set_normal();
+    cls();
+    gotoxy( 1<<8 | 1 );
+    curon();
+    stndend();
     return 0;
 }
 

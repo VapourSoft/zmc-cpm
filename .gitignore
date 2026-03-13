@@ -17,3 +17,4 @@ sniffer.c
 *.old
 *.orig
 *.work
+sysenv_*.asm

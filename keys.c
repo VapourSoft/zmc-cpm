@@ -16,7 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-// interface functions for VT100 terminal input and output
+// interface functions for terminal function key input
+// most VT100 keys are supported
 // some VT52 keys (up, down, F1, F3, F4) are also recognised
 
 #include <stdint.h>
@@ -24,7 +25,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "zmc.h"
 
 
-// handle VT100 function keys starting with <ESC>
+// handle function keys starting with <ESC>
 uint8_t parse_function_keys( uint8_t k ) {
     uint8_t loop = 1;
     // the VT100 CSI commands starting with <ESC>[
@@ -102,52 +103,5 @@ uint8_t parse_function_keys( uint8_t k ) {
         dump_file();
     }
     return loop;
-}
-
-
-void show_cursor() {
-    printf("\x1b[?25h");
-}
-
-
-void hide_cursor() {
-    printf("\x1b[?25l");
-}
-
-
-void set_invers() {
-    printf("\x1b[7m");
-}
-
-
-void set_normal() {
-    printf("\x1b[0m");
-}
-
-
-void clr_scr() {
-    printf("\x1b[2J");
-}
-
-
-void goto_xy( uint8_t col, uint8_t row ) {
-    printf( "\x1b[%d;%dH", row, col );
-}
-
-
-void putchar_xy( uint8_t col, uint8_t row, char c ) {
-    printf( "\x1b[%d;%dH%c", row, col, c );
-}
-
-void clr_line_right() {
-    printf( "\x1b[K" );
-}
-
-void clr_line_left() { // erase to begin of line
-    printf( "\x1b[1K" );
-}
-
-void clr_line() {
-    printf( "\x1b[2K" );
 }
 

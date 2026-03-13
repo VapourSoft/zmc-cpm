@@ -22,10 +22,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include "zmc.h"
 
 
+void putchar_xy( uint8_t col, uint8_t row, char c ) {
+    static char buf[4];
+    sprintf(buf, "%c%c%c", row, col, c );
+    gxymsg(buf);
+}
+
+
 // draw one line with file name, attributes, size, date etc.
 void draw_file_info( Panel *p, int16_t f_idx ) {
     if ( App.active_panel == p && p->num_files && f_idx == p->current_idx)
-        set_invers();
+        stndout();
 
     printf("%c%-12s %c%c%c",
            p->files[f_idx].attrib & B_SEL ? '*' : ' ',
@@ -63,14 +70,14 @@ void draw_file_info( Panel *p, int16_t f_idx ) {
                 putchar( ' ' );
         }
         if ( App.active_panel == p && f_idx == p->current_idx)
-            set_normal();
+            stndend();
         // fill to end of panel line
         w = PANEL_WIDTH < 42 ? PANEL_WIDTH - 39 : PANEL_WIDTH - 42;
         while ( w-- )
             putchar( ' ' );
     } else { // no date for complete drive or panel too narrow
         if ( App.active_panel == p && f_idx == p->current_idx)
-            set_normal();
+            stndend();
         w = PANEL_WIDTH - 25;
         while ( w-- )
             putchar( ' ' );
@@ -83,9 +90,9 @@ void draw_frame( Panel *p) {
     uint8_t i;
 
     if ( &App.left == p )
-        goto_xy( 1, 1 );
+        gotoxy( 1<<8 | 1 );
     else
-        goto_xy( PANEL_WIDTH + 1, 1 );
+        gotoxy( 1<<8 | PANEL_WIDTH + 1 );
     putchar(' ');
     i = PANEL_WIDTH - 2;
     while ( i-- )
@@ -95,19 +102,19 @@ void draw_frame( Panel *p) {
         int16_t f_idx = i + p->scroll_offset;
         if ( &App.left == p ) {
             putchar_xy( PANEL_WIDTH , i + 2, '|' );
-            goto_xy( PANEL_WIDTH - 1 , i + 2 );
-            clr_line_left();
+            gotoxy( (i+2)<<8 | PANEL_WIDTH - 1 );
+            //clr_line_left();
             putchar_xy( 1, i + 2, '|' );
         } else {
             putchar_xy( PANEL_WIDTH + 1, i + 2, '|' );
-            clr_line_right();
+            ereol();
             putchar_xy( 2 * PANEL_WIDTH, i + 2, '|' );
         }
     }
     if ( &App.left == p )
-        goto_xy( 1, PANEL_HEIGHT );
+        gotoxy( PANEL_HEIGHT<<8 | 1 );
     else
-        goto_xy( PANEL_WIDTH + 1, PANEL_HEIGHT );
+        gotoxy( PANEL_HEIGHT<<8 | PANEL_WIDTH + 1 );
     i = PANEL_WIDTH - 2;
     putchar( '|' );
     while ( i-- )
@@ -127,12 +134,16 @@ void fill_panel( Panel *p ) {
     if (p->current_idx >= p->scroll_offset + VISIBLE_ROWS) {
         p->scroll_offset = p->current_idx - (VISIBLE_ROWS - 1);
     }
-    set_normal();
+    stndend();
     for (i = 0; i < VISIBLE_ROWS; i++) {
         int f_idx = i + p->scroll_offset;
+        gotoxy( (i+2)<<8 | x_offset );
         if (f_idx < p->num_files) {
-            goto_xy( x_offset, i + 2 );
             draw_file_info( p, f_idx );
+        } else {
+            uint8_t j = PANEL_WIDTH - 2;
+            while ( j-- )
+                putchar( ' ' );
         }
     }
 }
@@ -142,7 +153,7 @@ void fill_panel( Panel *p ) {
 void draw_file_line(Panel *p, int16_t file_idx) {
     uint8_t x_offset = p == &App.left ? 2 : PANEL_WIDTH + 2;
     if (file_idx >= p->scroll_offset && file_idx < p->scroll_offset + VISIBLE_ROWS) {
-        goto_xy( x_offset, file_idx - p->scroll_offset + 2 );
+        gotoxy( (file_idx - p->scroll_offset + 2)<<8 | x_offset );
         draw_file_info( p, file_idx );
     }
 }
@@ -161,19 +172,19 @@ void print_cpm_attrib( uint8_t *ca) {
 // show the disk on top of panel, mark the active panel
 void draw_header( Panel *p ) {
     uint8_t x_offset = p == &App.left ? 3 : PANEL_WIDTH + 3;
-    goto_xy( x_offset, 1 );
+    gotoxy( 1<<8 | x_offset );
     if ( p == App.active_panel )
-        set_invers();
+        stndout();
     printf( "[ DISK %c: ]", p->drive );
     if ( p == App.active_panel )
-        set_normal();
+        stndend();
 }
 
 
 // show function key help
 void draw_footer( void ) {
-    goto_xy( 1, PANEL_HEIGHT+2 );
-    set_invers();
+    gotoxy( (PANEL_HEIGHT+2)<<8 | 1 );
+    stndout();
     if ( PANEL_WIDTH >= 40 ) {
         printf("| A: - P: | TAB:Sw | F1:Help | F3:View | F4:Dump | F5:Copy | F8:Del | F10:Exit |");
     } else if ( PANEL_WIDTH >= 30 ) {
@@ -184,17 +195,17 @@ void draw_footer( void ) {
 
 // cmd line with active drive
 void show_prompt() {
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    set_normal();
+    gotoxy( (PANEL_HEIGHT+1)<<8 | 1 );
+    stndend();
     printf("%c> %s", App.active_panel->drive, cmdline );
-    clr_line_right();
-    show_cursor();
+    ereol();
+    curon();
 }
 
 
 // update none, one or both panels
 void refresh_ui(uint8_t which_panel) {
-    hide_cursor();
+    curoff();
     if ( which_panel & 0b01) {
         draw_frame( App.active_panel );
         draw_header( App.active_panel );
