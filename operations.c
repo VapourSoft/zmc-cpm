@@ -285,9 +285,9 @@ static int8_t delete_active_file() {
 
 
 static void more( const char *action, const char *file_name ) {
-    set_invers();
+    stndout();
     printf(" %s: %s (<SPACE>: more | <ESC>: exit) ", action, file_name);
-    set_normal();
+    stndend();
 }
 
 
@@ -298,9 +298,9 @@ void view_file() {
     int line_count = -1;
     char *name = p->files[p->current_idx].cpmname;
 
-    clr_scr();
-    goto_xy( 1, 1 ); // home
-    hide_cursor();
+    cls();
+    gotoxy( 1<<8 | 1 ); // home
+    curoff();
 
     prepare_fcb(name, p, NULL);
     // open and read
@@ -319,7 +319,7 @@ void view_file() {
                         if ( wait_key_hw() == ESC )
                             goto esc_file;
                         putchar( '\r' );
-                        clr_line_right();
+                        ereol();
                         line_count = 0;
                     }
                 }
@@ -330,12 +330,12 @@ void view_file() {
     }
 end_of_file:
     puts( "" ); // CRLF
-    set_invers();
+    stndout();
     printf(" --- End Of File --- "); // inv / normal
-    set_normal();
+    stndend();
     wait_key_hw();
 esc_file:
-    clr_scr(); // clear screen, hide cursor
+    cls(); // clear screen, hide cursor
     refresh_ui( PAN_BOTH );
 }
 
@@ -347,9 +347,9 @@ void dump_file() {
     long address = 0;
     char *name_ptr = p->files[p->current_idx].cpmname;
 
-    clr_scr();
-    goto_xy( 1, 1 ); // home
-    hide_cursor();
+    cls();
+    gotoxy( 1<<8 | 1 ); // home
+    curoff();
 
     prepare_fcb(p->files[p->current_idx].cpmname, p, NULL);
 
@@ -375,7 +375,7 @@ void dump_file() {
                     more( "DUMP", name_ptr );
                     if (wait_key_hw() == 27) goto esc_file;
                     putchar( '\r' );
-                    clr_line_right();
+                    ereol();
                     line_count = 0;
                 }
             }
@@ -384,38 +384,50 @@ void dump_file() {
         printf("\r\nError opening file.");
     }
     puts( "" );
-    set_invers();
+    stndout();
     printf(" --- End Of File --- ");
-    set_normal();
+    stndend();
     wait_key_hw();
 esc_file:
-    clr_scr(); // clear screen, hide cursor
+    cls(); // clear screen, hide cursor
     refresh_ui( PAN_BOTH );
 }
 
+#if 1
 
 // copy a specific file by its name using bdos calls
-static int copy_file_by_name(Panel *src, Panel *dst, const char *name) {
+static int16_t copy_file_by_name(Panel *src, Panel *dst, const char *name) {
+    int8_t rs, ws;
     prepare_fcb(name, src, dst);
-    bdos(19, fcb_dst);                       // BDOS function 19 (F_DELETE) - delete file
-    if (bdos(15, fcb_src) == 255) return -1; // BDOS function 15 (F_OPEN) - Open file
-    if (bdos(22, fcb_dst) == 255) return -1; // BDOS function 22 (F_MAKE) - create file
+    if ( bdos(15, fcb_src) == 255)  // F_OPEN - open file
+        return 255;
+    bdos(19, fcb_dst);              // F_DELETE - delete file
+    if (bdos(22, fcb_dst) == 255)   // F_MAKE - create file
+        return 255;
     uint16_t total = 0;
-    while (bdos(20, fcb_src) == 0) {         // BDOS function 20 (F_READ) - read next record
-        if (bdos(21, fcb_dst) != 0) break;   // BDOS function 21 (F_WRITE) - write next record
+    bdos(26, DEF_DMA); // F_DMAOFF - set DMA address
+    while ( ( rs = bdos(20, fcb_src) ) == 0 ) { // F_READ - read next record
+        if ( ( ws = bdos(21, fcb_dst) ) != 0)   // F_WRITE - write next record
+            break;
+        ++total;
         if ( DEBUG ) {
-            goto_xy( 1, DEBUG_ROW );
-            printf( "copy: %d records", ++total );
+            gotoxy( DEBUG_ROW<<8 | 1 );
+            printf( "copy: %d records", total );
         }
-    }
-    bdos(16, fcb_dst);                       // BDOS function 16 - Close file
-    return 0;
+    } // while
+    if ( rs > 1) // 0: ok, 1: EOF (ok), FF: = HW error
+        return rs;
+    if ( !ws ) // write ok
+        bdos(16, fcb_dst); // F_CLOSE - close file
+    else
+        bdos(19, fcb_dst); // F_DELETE - delete (partial) file
+    return ws; // 0: ok, 1: dir full, 2: disc full, FF: HW error
 }
 
+#else
 
-#if 0
 // copy a specific file by its name using c fcntl functions
-static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
+static int copy_file_by_name( Panel *src, Panel *dst, const char *name ) {
     FILE *fsrc, *fdst;
     uint8_t buffer[128];
     int16_t recs;
@@ -428,8 +440,8 @@ static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
     strcpy( srcname+2, name );
     strcpy( dstname+2, name );
     if ( DEBUG ) {
-        goto_xy( 1, DEBUG_ROW );
-        clr_line_right();
+        gotoxy( DEBUG_ROW<<8 | 1 );
+        ereol();
         printf( "copy: %s %s", srcname, dstname );
     }
     fsrc = fopen( srcname, "rb" );
@@ -439,7 +451,7 @@ static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
         while( recs = ( fread( buffer, 128, 1, fsrc ) ) ) {
             total += recs;
             if ( DEBUG ) {
-                goto_xy( 41, DEBUG_ROW );
+                gotoxy( DEBUG_ROW<<8 | 41 );
                 printf( "%d records", total );
             }
             fwrite( buffer, 128, recs, fdst );
@@ -447,7 +459,7 @@ static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
     }
     else
         if ( DEBUG ) {
-            goto_xy( 61, DEBUG_ROW );
+            gotoxy( DEBUG_ROW<<8 | 61 );
             printf( "error: %p %p", fsrc, fdst );
         }
     fclose( fsrc );
@@ -458,6 +470,7 @@ static int copy_file_by_name_c( Panel *src, Panel *dst, const char *name ) {
 
     return 0;
 }
+
 #endif
 
 
@@ -470,9 +483,10 @@ uint8_t yes_no() {
 // process multi selections
 void exec_multi_copy(Panel *src, Panel *dst) {
     int i, marked = 0, done = 0;
+    int8_t rc;
 
     if ( DEBUG ) {
-        goto_xy( 1, SCREEN_HEIGHT + 1 ); // debugging line
+        gotoxy( (SCREEN_HEIGHT+1)<<8 | 1 ); // debugging line
         printf( "copy" );
     }
 
@@ -481,24 +495,41 @@ void exec_multi_copy(Panel *src, Panel *dst) {
     }
 
     if (marked == 0) {
-        goto_xy( 1, SCREEN_HEIGHT-1 );
-        clr_line_right();
-        printf(" Copying: %s... ", src->files[src->current_idx].cpmname);
-        copy_file_by_name(src, dst, src->files[src->current_idx].cpmname );
+        gotoxy( (SCREEN_HEIGHT-1)<<8 | 1 );
+        ereol();
+        printf(" Copying: %s", src->files[src->current_idx].cpmname);
+        rc = copy_file_by_name(src, dst, src->files[src->current_idx].cpmname );
     } else {
         for (i = 0; i < src->num_files; i++) {
             if (src->files[i].attrib & B_SEL) {
                 done++;
-                goto_xy( 1, SCREEN_HEIGHT-1 );
-                clr_line_right();
-                printf(" [%d/%d] Copying: %s ", done, marked, src->files[i].cpmname);
-                copy_file_by_name(src, dst, src->files[i].cpmname );
+                gotoxy( (SCREEN_HEIGHT-1)<<8 | 1 );
+                ereol();
+                printf(" Copying [%d/%d]: %s", done, marked, src->files[i].cpmname);
+                rc = copy_file_by_name(src, dst, src->files[i].cpmname );
+                if ( rc )
+                    break;
                 src->files[i].attrib &= ~B_SEL;
                 if ( is_on_panel( i ) )
                     draw_file_line( src, i ); // remove the visible '*' marks
             }
         }
     }
+
+    if ( rc ) {
+        if ( 1 == rc )
+            printf( " - directory full" );
+        else if ( 2 == rc )
+            printf( " - disk full" );
+        else if ( 0xFF == rc )
+            printf( " - HW error" );
+        else
+            printf( " - error %d", rc);
+        printf( " (press any key)" );
+        wait_key_hw();
+        bdos( 37, 1 << (dst->drive - 'A') ); // DRV_RESET - Selectively reset disc drives
+    }
+
     load_directory(dst);
     // the refresh will be done by main.c after calling this function.
 }
@@ -512,8 +543,8 @@ void exec_multi_delete(Panel *p) {
     }
     if (marked == 0) {
         // if none selected, delete  the current file (original functionality)
-        goto_xy( 1, SCREEN_HEIGHT-1 );
-        clr_line_right();
+        gotoxy( (SCREEN_HEIGHT-1)<<8 | 1 );
+        ereol();
         printf( " Deleting: %s... ", p->files[p->current_idx].cpmname );
         delete_active_file( p );
     } else {
@@ -521,8 +552,8 @@ void exec_multi_delete(Panel *p) {
         for (i = 0; i < p->num_files; i++) {
             if (p->files[i].attrib & B_SEL) {
                 ++done;
-                goto_xy( 1, SCREEN_HEIGHT-1 );
-                clr_line_right();
+                gotoxy( (SCREEN_HEIGHT-1)<<8 | 1 );
+                ereol();
                 printf(" [%d/%d] Deleting: %s ", done, marked, p->files[i].cpmname);
                 prepare_fcb(p->files[i].cpmname, p, NULL);
                 bdos(19, fcb_src); // BDOS function 19 (F_DELETE) - delete file
@@ -531,8 +562,8 @@ void exec_multi_delete(Panel *p) {
         }
     }
     // clear dialog part
-    goto_xy( 1, SCREEN_HEIGHT-1 );
-    clr_line_right();
+    gotoxy( (SCREEN_HEIGHT-1)<<8 | 1 );
+    ereol();
 }
 
 
@@ -542,8 +573,8 @@ void copy_cmd() {
         return;
     Panel *dest = (App.active_panel == &App.left) ? &App.right : &App.left;
     // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
+    gotoxy( (PANEL_HEIGHT+1)<<8 | 1 );
+    ereol();
     printf(" COPY SELECTED FILE(S) TO %c:? (Y/N) ", dest->drive);
     if ( yes_no() ) {
         // Y: copy multiple files
@@ -551,8 +582,8 @@ void copy_cmd() {
         fill_panel( App.inactive_panel );
     }
     // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
+    gotoxy( (PANEL_HEIGHT+1)<<8 | 1 );
+    ereol();
 }
 
 
@@ -560,8 +591,8 @@ void delete_cmd() {
     if ( !App.active_panel->num_files ) // nothing to do
         return;
     // clear dialog box and ask
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
+    gotoxy( (PANEL_HEIGHT+1)<<8 | 1 );
+    ereol();
     printf(" DELETE SELECTED FILE(S)? (Y/N) " );
     if ( yes_no() ) {
         // Y: call master function
@@ -578,8 +609,8 @@ void delete_cmd() {
         }
     }
     // clear status line
-    goto_xy( 1, PANEL_HEIGHT+1 );
-    clr_line_right();
+    gotoxy( (PANEL_HEIGHT+1)<<8 | 1 );
+    ereol();
 }
 
 

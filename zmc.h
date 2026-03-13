@@ -19,12 +19,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define ZMC_H
 
 #include <stdint.h>
+#include "vlib.h"
 
-#define FILENAME_LEN 13
-#define SCREEN_HEIGHT (*LINES) // 32
-#define PANEL_WIDTH (*COLUMNS/2) //40
-#define PANEL_HEIGHT (SCREEN_HEIGHT - 2) // 30  // Ajustable según la terminal
-#define VISIBLE_ROWS (PANEL_HEIGHT - 2)
+extern uint8_t COLUMNS;
+extern uint8_t LINES;
 
 
 #define NUL 0x00
@@ -37,12 +35,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define RUB 0x7F
 
 
-extern uint8_t *LINES;
-extern uint8_t *COLUMNS;
-
 #define FILENAME_LEN 13
-#define SCREEN_HEIGHT (*LINES)
-#define PANEL_WIDTH (*COLUMNS/2)
+#define SCREEN_HEIGHT (LINES)
+#define PANEL_WIDTH (COLUMNS/2)
 #define PANEL_HEIGHT (SCREEN_HEIGHT - 2)
 #define VISIBLE_ROWS (PANEL_HEIGHT - 2)
 #define DEBUG_ROW (SCREEN_HEIGHT+1)
@@ -141,16 +136,6 @@ extern uint8_t fcb_dst[];
 extern uint16_t MAX_FILES;
 extern AppState App;
 
-void set_invers( void );
-void set_normal( void );
-void show_cursor();
-void hide_cursor();
-void clr_scr( void );
-void goto_xy( uint8_t col, uint8_t row );
-void putchar_xy( uint8_t col, uint8_t row, char c );
-void clr_line_right( void );
-void clr_line_left( void );
-void clr_line( void );
 void line_up( void );
 void line_down( void );
 void page_up( void );
