@@ -27,12 +27,12 @@ global compatibility.
 - Loadable environment file for non-Z3 systems.
 
 ## TERMINAL ADAPTION
-By calling the program with `ZMC --ENV [ENVFILE]`, you can load an environment file
-that contains a TCAP definition of the terminal functions.
+By calling the program with `ZMC --TCAP [TCAPFILE]`, you can load the a 128 byte TCAP file
+with the definitions of the terminal functions.
 This allows the program to be adapted to different types of terminal. The project
-provides environment files `vt100.env` (this is the same as the ZMC default setting),
-Lear Siegler ADM-3A `adm-3a.env` (untested), Heath/Zenith19 `heath19.env` (untested),
-and the test file `vt100_ul.env`, the VT100 setting with underline instead of invers.
+provides environment files `vt100.tcp` (this is the same as the ZMC default setting),
+Lear Siegler ADM-3A `adm-3a.tcp` (untested), Heath/Zenith19 `heath19.tcp` (untested),
+and the test file `vt100_ul.tcp`, the VT100 setting with underline instead of invers.
 
 ## KEYMAP
 |  KEY                 | Function                          |
