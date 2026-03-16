@@ -1,15 +1,15 @@
 SOURCE = main.c panel.c operations.c keys.c internal_env.asm vlib.asm
-ENVSRC = sysenv_vt100.asm
+ENVSRC = sysenv.asm vt100.asm
+CRT = z3_crt0.asm
 HEADER = zmc.h internal_env.h vlib.h
 ZMC = zmc.com
+TCAP = vt100.tcp vt100_ul.tcp adm-3a.tcp heath19.tcp
 ENV = vt100.env vt100_ul.env adm-3a.env heath19.env
 
 
 .PHONY: all
-all: $(ZMC) $(ENV)
+all: $(ZMC) $(TCAP) $(ENV)
 
-.PHONY: test
-test: $(TEST)
 
 # ZMC build is using:
 #  The sccz80 assembler (defaults to __smallc linkage)
@@ -18,7 +18,7 @@ test: $(TEST)
 
 
 # the complete build is more compact (~ -500 byte) than the modular build
-$(ZMC): $(SOURCE) $(HEADER) $(ENVSRC)
+$(ZMC): $(SOURCE) $(HEADER) $(ENVSRC) $(CRT)
 	zcc +cpm -O3 -crt0=z3_crt0.asm -vn -Wall \
 	-pragma-output:noprotectmsdos \
 	-pragma-output:noredir \
@@ -26,35 +26,38 @@ $(ZMC): $(SOURCE) $(HEADER) $(ENVSRC)
 	$(SOURCE) -lvlib -lsyslib \
 	-o $@ -m --list
 
+# the TCAP files
+adm-3a.tcp: adm-3a.asm
+	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
-# the environment files
-vt100.env: sysenv_vt100.asm
-	z88run zcc +cpm -O3 --no-crt -vn -Wall $< -o $@ -m --list
+heath19.tcp: heath19.asm
+	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
-# create intermediate source code
-sysenv_vt100.asm: sysenv.asm vt100.asm
+vt100.tcp: vt100.asm
+	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
+
+vt100_ul.tcp: vt100_ul.asm
+	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
+
+
+# the environment file
+sysenv.bin: sysenv.asm
+	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
+
+# the environment and TCAP files
+adm-3a.env: sysenv.bin adm-3a.tcp
 	cat $^ > $@
 
-# some (untested) TCAPs
-adm-3a.env: sysenv_adm-3a.asm
-	z88run zcc +cpm -O3 --no-crt -vn -Wall $< -o $@ -m --list
-
-sysenv_adm-3a.asm: sysenv.asm adm-3a.asm
+heath19.env: sysenv.bin heath19.tcp
 	cat $^ > $@
 
-heath19.env: sysenv_heath19.asm
-	z88run zcc +cpm -O3 --no-crt -vn -Wall $< -o $@ -m --list
-
-sysenv_heath19.asm: sysenv.asm heath19.asm
+vt100.env: sysenv.bin vt100.tcp
 	cat $^ > $@
 
-vt100_ul.env: sysenv_vt100_ul.asm
-	z88run zcc +cpm -O3 --no-crt -vn -Wall $< -o $@ -m --list
-
-sysenv_vt100_ul.asm: sysenv.asm vt100_ul.asm
+vt100_ul.env: sysenv.bin vt100_ul.tcp
 	cat $^ > $@
 
 
 .PHONY: clean
 clean:
-	rm -f $(ZMC) $(ENV) $(TEST) *.map *.lis sysenv_*
+	rm -f $(ZMC) $(ENV) $(TCP) *.map *.lis

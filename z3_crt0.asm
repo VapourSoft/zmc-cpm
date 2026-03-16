@@ -75,94 +75,41 @@
 
     INCLUDE "crt/classic/crt_rules.inc"
 
-    org     CRT_ORG_CODE
+    PUBLIC Z3ENV, ENVPTR
 
+    org     CRT_ORG_CODE
 
 ;----------------------
 ; Execution starts here
 ;----------------------
-start:
-IF !DEFINED_noprotectmsdos
-	defb	$eb,$04		;DOS protection... JMPS LABE
-	ex	de,hl
-	jp	begin-start+CRT_ORG_CODE
-	defb	$b4,$09		;DOS protection... MOV AH,9
-	defb	$ba
-	defw	dosmessage	;DOS protection... MOV DX,OFFSET dosmessage
-	defb	$cd,$21		;DOS protection... INT 21h.
-	defb	$cd,$20		;DOS protection... INT 20h.
 
-dosmessage:
-	defm	"This program is for a CP/M system."
-	defb	13,10,'$'
-
-begin:
-ENDIF
-
-IF DEFINED_protect8080
-
-	ld	a,$7F			; 01111111 into accumulator
-	inc	a			; make it overflow ie. 10000000
-	jp	pe,isz80	; only 8080 resets for odd parity here
-
-	ld	c,9		; print string
-	ld	de,err8080
-	call	__bdos	; BDOS
-	jp	0
-
-err8080:
-	defm	"This program requires a Z80 CPU."
-	defb	13,10,'$'
-isz80:
-ENDIF
-
-    PUBLIC Z3ENV, ENVPTR
-
-;	nop	 ;   Those extra bytes fix the Amstrad NC's ZCN support !!?!
-;	nop
-    jp      strt
+    jp      start
 Z3ENV:
     defm    "Z3ENV"
     defb    1
 ENVPTR:
     defb    0,0
-strt:
+start:
+    ld	a,$7F		; 01111111 into accumulator
+    inc	a		; make it overflow ie. 10000000
+    jp	pe,isz80	; only 8080 resets for odd parity here
+
+    ld	c,9		; print string
+    ld	de,err8080
+    call	__bdos	; BDOS
+    jp	0
+err8080:
+    defm	"This program requires a Z80 CPU."
+    defb	13,10,'$'
+isz80:
+
     ld      hl,0
     add     hl,sp
     ld      (__restore_sp_onexit+1),hl	;Save entry stack
-IF (startup=3) | (startup=4) | (startup=5)
-    ; Increase to cover +3 MEM banking
-    defc    __clib_exit_stack_size_t  = __clib_exit_stack_size + 18 + 18
-    UNDEFINE __clib_exit_stack_size
-    defc    __clib_exit_stack_size = __clib_exit_stack_size_t
-ENDIF
     INCLUDE "crt/classic/crt_init_sp.inc"
     call    crt0_init
     INCLUDE "crt/classic/crt_init_atexit.inc"
     call    cpm_platform_init	;Any platform specific init
-
-; Memory banking for Spectrum +3
-IF (startup=3) | (startup=4) | (startup=5)
-
-	PUBLIC    p3_poke
-	PUBLIC    p3_peek
-
-	push hl
-	ld de,64
-	add hl,de
-	ld (p3_poke+1),hl
-	push hl
-	ld de,18
-	add hl,de
-	ld (p3_peek+1),hl
-	pop hl
-	ld d,h
-	ld e,l
-	ld hl,pokebyte_code
-	ld bc,18+18
-	ldir
-	pop hl
-ENDIF
 
     INCLUDE "crt/classic/crt_init_heap.inc"
     INCLUDE "crt/classic/crt_init_eidi.inc"
@@ -223,180 +170,18 @@ do_exit_v3:
 
 l_dcal:	jp	(hl)		;Used for call by function ptr
 
-; Memory banking for Spectrum +3
-IF (startup=3) | (startup=4) | (startup=5)
-
-    PUBLIC	RG0SAV
-RG0SAV:	defb 0
-
-    PUBLIC	pixelbyte
-pixelbyte:	defb	0		; temp byte storage for VDP driver
-
-p3_poke:
-		jp 0
-
-p3_peek:
-		jp 0
-
-pokebyte_code:
-		di
-		; ..$15 00010101 -> banks 4,5,6,3
-		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
-		ex  af,af
-
-IF (startup=4)
-		; Dataputer DISKFACE
-		call $EFD9
-		nop
-		nop
-		nop
-		nop
-ELSE
-IF  (startup=5)
-		xor a
-		out ($fd),a
-		nop
-		nop
-		nop
-		nop
-ELSE
-		ld	a,$15
-		;ld	a,$0D
-		;ld	a,$05
-		ld bc,$1ffd
-		out(c),a
-ENDIF
-ENDIF
-
-		ex af,af
-		ld (hl),a
-IF (startup=4)
-		; Dataputer DISKFACE
-		call $EFF3
-		nop
-ELSE
-IF  (startup=5)
-		ld a,$80
-		out ($fd),a
-ELSE
-		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2
-		;ld	a,$09
-		;ld	a,$01
-		;ld	a,($FF01)	; saved value
-		out(c),a
-ENDIF
-ENDIF
-		ei
-		ret
-		; adjust code size
-		nop
-peekbyte_code:
-		di
-		; ..$15 00010101 -> banks 4,5,6,3
-		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
-
-IF (startup=4)
-		; Dataputer DISKFACE
-		call $EFD9
-		nop
-		nop
-		nop
-		nop
-ELSE
-IF  (startup=5)
-		xor a
-		out ($fd),a
-		nop
-		nop
-		nop
-		nop
-ELSE
-		ld	a,$15
-		;ld	a,$0D
-		;ld	a,$05
-		ld bc,$1ffd
-		out(c),a
-ENDIF
-ENDIF
-
-		ld a,(hl)
-		ex  af,af
-IF (startup=4)
-		; Dataputer DISKFACE
-		call $EFF3
-		nop
-ELSE
-IF  (startup=5)
-		ld a,$80
-		out ($fd),a
-ELSE
-		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2
-		;ld	a,$09
-		;ld	a,$01
-		;ld	a,($FF01)	; saved value
-		out(c),a
-ENDIF
-ENDIF
-		ex  af,af
-		ei
-		ret
-		; adjust code size
-		nop
-ENDIF
-
-
     INCLUDE "crt/classic/crt_runtime_selection.inc"
-    INCLUDE	"crt/classic/crt_section.inc"
+    INCLUDE "crt/classic/crt_section.inc"
     INCLUDE "crt/classic/crt_cpm_fcntl.inc"
 
-IF __HAVE_TMS99X8
-    ; And include handling disabling screenmodes
-    INCLUDE "crt/classic/tms99x8/tms99x8_mode_disable.inc"
-ENDIF
-
-IF __NABUPC__
-    INCLUDE "target/nabu/classic/nabu_hccabuf.asm"
-ENDIF
-
-IF __BEE__
-    INCLUDE "target/bee/classic/bee_premium.inc"
-ENDIF
-
-IF WANT_DEVICE_STDPUN
-    EXTERN _stdpun_device
-    setup_static_fp(__stdpun,_stdpun_device)
-ENDIF
-IF WANT_DEVICE_STDRDR
-    EXTERN _stdrdr_device
-    setup_static_fp(__stdrdr,_stdrdr_device)
-ENDIF
-IF WANT_DEVICE_STDLST
-    EXTERN _stdlst_device
-    setup_static_fp(__stdlst,_stdlst_device)
-ENDIF
-
-    ; Memory hole for the Apple II high resolution graphics
-    ; This quick and dirty approach wastes about 7K of memory
-	; which could be recovered by moving the STACK or
-	; the DATA section here
-IF  (startup=2)
- DEFS $2000-CRT_ORG_CODE-ASMPC
-  defs $2000
-ENDIF
 
     SECTION code_crt_init
     ld      c,25
     call    __bdos
     ld      (defltdsk),a
 
-IF __HAVE_TMS99X8
-    ; And include setting an initial screen mode (note inside code_crt_init section)
-    INCLUDE "crt/classic/tms99x8/tms99x8_mode_init.inc"
-ENDIF
-
 
     SECTION code_crt_exit
-
     ld      a,(defltdsk)        ;Restore default disc
     ld      e,a
     ld      c,14

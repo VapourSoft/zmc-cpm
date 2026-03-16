@@ -168,9 +168,6 @@ int main(int argc, char** argv) {
         ++argv;
         if ( !strcmp( *argv, "--CONFIG" ) ) {
             printf( "CP/M version: %02X\n", cpmversion );
-#ifdef i8080
-            printf( "8080 code\n" );
-#endif
             printf( "COLUMNS @ 0x%04X: %d\n", &COLUMNS - 0x100, COLUMNS );
             printf( "LINES @ 0x%04X: %d\n", &LINES - 0x100, LINES );
             printf( "MAX_FILES: %u\n", MAX_FILES );
@@ -179,27 +176,36 @@ int main(int argc, char** argv) {
             ++DEVEL;
         } else if ( !strcmp( *argv, "--DEBUG" ) ) {
             ++DEBUG;
-        } else if ( !stricmp( *argv, "--ENV" ) ) {
-          ++argv;
-          // &env is location of our internal Z3 environment. The storage is
-          // allocated by linking in internal_env. There really needs to be a
-          // function that checks for native Z and allocates the internal buffer
-          // dynamically only if required (i.e. no native Z3).
-          int fd;
-          if ((fd = open(*argv, O_RDONLY, 0)) > 0) {
-            size_t count = read(fd, (void *)&env, 256);
-            if (count != 256) {
-              printf("Error reading environment file.\n");
-              exit(1);
+        } else if ( !stricmp( *argv, "--TCAP" ) || !stricmp( *argv, "--ENV" ) ) {
+            char *opt = *argv;
+            ++argv;
+            // TODO: &env is location of our internal Z3 environment. The storage is
+            // allocated by linking in internal_env. There really needs to be a
+            // function that checks for native Z and allocates the internal buffer
+            // dynamically only if required (i.e. no native Z3).
+            int fd;
+            if ((fd = open(*argv, O_RDONLY, 0)) > 0) {
+                if ( !stricmp( opt, "--TCAP" ) ) {
+                    size_t count = read(fd, (void *)&env+128, 128);
+                    if (count != 128) {
+                        printf("Error reading TCAP file %s\n", *argv );
+                        exit(1);
+                    }
+                } else { // debug function to load a different env & TCAP
+                    size_t count = read(fd, (void *)&env, 256);
+                    if (count != 256) {
+                        printf("Error reading environment file %s\n", *argv );
+                        exit(1);
+                    }
+                }
+                close(fd);
+                // Reset DMA to default!
+                bdos(26, DEF_DMA);
+            } else {
+                printf("Cannot open TCAP or environment file: %s\n", *argv);
+                if ( ESC == wait_key_hw() )
+                    return -1;
             }
-            close(fd);
-            // Reset DMA to default!
-            bdos(26, 0x80);
-            printf("Read environment file: %s\n", *argv);
-          } else {
-            printf("Cannot open environment file: %s\n", *argv);
-            wait_key_hw();
-          }
         } else if ( !strcmp( *argv, "--KEY" ) ) {
             // test for terminal function keys, exit with <ESC><ESC>
             uint8_t k;
@@ -225,10 +231,13 @@ int main(int argc, char** argv) {
                  drive_left  = *argv[0];
         }
     }
-            z3vinit(&env);
+    bdos( 26, DEF_DMA );
+    z3vinit( &env );
 
     if ( DEBUG )
         --LINES; // debugging output in the last line
+
+    MAX_FILES = 512;
 
     FileEntry *f_left;
     FileEntry *f_right;
@@ -243,7 +252,11 @@ int main(int argc, char** argv) {
         fprintf( stderr, "Not enough memory!\n" );
         return -1;
     }
-
+    if ( DEBUG > 1 ) {
+        mallinfo( &total, &largest );
+        printf( "total: %u, largest: %u", total, largest );
+        return 0;
+    }
     cls();
     curoff();
 
