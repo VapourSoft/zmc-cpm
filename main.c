@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
             // function that checks for native Z and allocates the internal buffer
             // dynamically only if required (i.e. no native Z3).
             int fd;
-            if ((fd = open(*argv, O_RDONLY, 0)) > 0) {
+            if ((fd = open(*argv, O_RDONLY, 0)) >= 0) {
                 if ( !stricmp( opt, "--TCAP" ) ) {
                     size_t count = read(fd, (void *)&env+128, 128);
                     if (count != 128) {
