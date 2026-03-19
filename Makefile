@@ -1,4 +1,4 @@
-SOURCE = main.c panel.c operations.c keys.c internal_env.asm vlib.asm
+SOURCE = main.c panel.c operations.c cpsrcdst.asm keys.c internal_env.asm vlib.asm
 ENVSRC = sysenv.asm vt100.asm
 CRT = z3_crt0.asm
 HEADER = zmc.h internal_env.h vlib.h
@@ -22,7 +22,7 @@ $(ZMC): $(SOURCE) $(HEADER) $(ENVSRC) $(CRT)
 	zcc +cpm -O3 -crt0=z3_crt0.asm -vn -Wall \
 	-pragma-output:noprotectmsdos \
 	-pragma-output:noredir \
-	-DAMALLOC -pragma-define:CRT_STACK_SIZE=1024 \
+	-DAMALLOC -pragma-define:CRT_STACK_SIZE=512 \
 	$(SOURCE) -lvlib -lsyslib \
 	-o $@ -m --list
 

@@ -68,11 +68,12 @@ DUOK:   DB	0		; 1=ok to accept du, 0=not ok
 	DB	0		; Crt selection (0=crt 0, 1=crt 1)
 	DB	0		; Printer selection (n=printer n)
 
-	PUBLIC	_COLUMNS, _LINES
+	PUBLIC	_COLUMNS, _LINES, _LINES2
 _COLUMNS:
 	DB	80		; Width of crt 0
 _LINES:
 	DB	24		; Number of lines on crt 0
+_LINES2:
 	DB	22		; Number of lines of text on crt 0
 
 DRVEC:  DW	0000		; Drive Vector *sg*

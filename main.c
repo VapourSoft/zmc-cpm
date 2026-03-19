@@ -35,23 +35,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 // // the status of both panels
 AppState App;
 
-// default configuration, can be patched for the target terminal
-// get the address of the config values with "zmc --config
-// const uint8_t CONFIG[] = { // 80x40
-//     80,  // Columns
-//     24   // Lines
-// };
-
-//extern uint8_t _COLUMNS;
-// extern uint8_t _LINES;
-
 char cmdline[CMDLINELEN+1];
+
+#define NUMBUF 64
 
 uint8_t DEBUG = 0; // increase with "zmc --debug", can be used to enable messages etc.
 uint8_t DEVEL = 0; // increase with "zmc --devel", can be used to enable new features
-
+uint8_t CONFIG = 0;
+uint8_t BUFFER = 0;
 uint16_t MAX_FILES = 0;
 
+uint8_t *cpbufpt = NULL;
+uint8_t cpbufsz = NUMBUF;
 
 void help() {
     uint8_t line = 1;
@@ -69,10 +64,11 @@ void help() {
         puts( "  #       #     #  #     # " );
         puts( " #######  #     #   #####  " );
         puts( "                           " );
-        line = 12;
+        line = 13;
     }
 
-    puts( "= ZMC 1.3 - Volney Torres - Ho-Ro - shirsch =" );
+    puts( "= ZMC 1.3-rc =" );
+    puts( "Volney Torres - Martin Homuth-Rosemann - Steven Hirsch\n" );
     const uint8_t helppos = 40;
     gotoxy( line<<8 | 1 );
     printf( "A: ... P:" );
@@ -147,6 +143,7 @@ int main(int argc, char** argv) {
         COLUMNS = bdos( 49, scbpb ) + 1;
         scbpb[0] = 0x1C; // lines - 1
         LINES = bdos( 49, scbpb ) + 1;
+        LINES2 = LINES - 2;
     }
 
     uint16_t total;
@@ -167,17 +164,14 @@ int main(int argc, char** argv) {
     while ( --argc ) {
         ++argv;
         if ( !strcmp( *argv, "--CONFIG" ) ) {
-            printf( "CP/M version: %02X\n", cpmversion );
-            printf( "COLUMNS @ 0x%04X: %d\n", &COLUMNS - 0x100, COLUMNS );
-            printf( "LINES @ 0x%04X: %d\n", &LINES - 0x100, LINES );
-            printf( "MAX_FILES: %u\n", MAX_FILES );
-            return 0;
+            ++CONFIG;
         } else if ( !strcmp( *argv, "--DEVEL" ) ) {
             ++DEVEL;
         } else if ( !strcmp( *argv, "--DEBUG" ) ) {
             ++DEBUG;
         } else if ( !stricmp( *argv, "--TCAP" ) || !stricmp( *argv, "--ENV" ) ) {
             char *opt = *argv;
+            --argc;
             ++argv;
             // TODO: &env is location of our internal Z3 environment. The storage is
             // allocated by linking in internal_env. There really needs to be a
@@ -206,6 +200,11 @@ int main(int argc, char** argv) {
                 if ( ESC == wait_key_hw() )
                     return -1;
             }
+        } else if ( !strcmp( *argv, "--BUFFER" ) ) {
+            --argc;
+            uint16_t arg = atoi( *(++argv) );
+            if ( arg && arg < 128 )
+                BUFFER = arg;
         } else if ( !strcmp( *argv, "--KEY" ) ) {
             // test for terminal function keys, exit with <ESC><ESC>
             uint8_t k;
@@ -231,34 +230,51 @@ int main(int argc, char** argv) {
                  drive_left  = *argv[0];
         }
     }
-    bdos( 26, DEF_DMA );
-    z3vinit( &env );
 
     if ( DEBUG )
         --LINES; // debugging output in the last line
 
-    MAX_FILES = 512;
+    if ( BUFFER )
+        cpbufsz = BUFFER;
+
+    cpbufpt = malloc( cpbufsz * 128 ); // reserve and init heap space
+    if ( cpbufpt == NULL ) {
+        fprintf( stderr, "cpbufpt: not enough memory!\n" );
+        return -1;
+    }
+
+    mallinfo( &total, &largest );
+
+    MAX_FILES = largest / sizeof( FileEntry ) / 2 - 1;
 
     FileEntry *f_left;
     FileEntry *f_right;
 
     f_left = calloc( MAX_FILES, sizeof( FileEntry ) ); // reserve and init heap space
     if ( f_left == NULL ) {
-        fprintf( stderr, "Not enough memory!\n" );
+        fprintf( stderr, "f_left: not enough memory!\n" );
         return -1;
     }
     f_right = calloc( MAX_FILES, sizeof( FileEntry ) ); // reserve and init heap space
     if ( f_right == NULL ) {
-        fprintf( stderr, "Not enough memory!\n" );
+        fprintf( stderr, "f_right: not enough memory!\n" );
         return -1;
     }
+
     if ( DEBUG > 1 ) {
         mallinfo( &total, &largest );
-        printf( "total: %u, largest: %u", total, largest );
+        printf( "total: %u, largest: %u, cpbufsz: %u, MAX_FILES: %u\n", total, largest, cpbufsz, MAX_FILES );
         return 0;
     }
-    cls();
-    curoff();
+
+    if ( CONFIG ) {
+        printf( "CP/M version: %02X\n", cpmversion );
+        printf( "COLUMNS @ 0x%04X: %d\n", &COLUMNS - 0x100, COLUMNS );
+        printf( "LINES @ 0x%04X: %d\n", &LINES - 0x100, LINES );
+        printf( "COPY BUFFER: %u\n", cpbufsz );
+        printf( "MAX_FILES: %u\n", MAX_FILES );
+        return 0;
+    }
 
     App.left.files = f_left;
     App.right.files = f_right;
@@ -267,6 +283,11 @@ int main(int argc, char** argv) {
 
     App.active_panel = &App.left;
     App.inactive_panel = &App.right;
+
+    bdos( 26, DEF_DMA );
+    z3vinit( &env );
+    cls();
+    curoff();
 
     draw_frame( &App.left );
     draw_header( &App.left );
@@ -397,6 +418,7 @@ int main(int argc, char** argv) {
         if ( loop )
             show_prompt();
     } // while ( loop )
+
     cls();
     gotoxy( 1<<8 | 1 );
     curon();

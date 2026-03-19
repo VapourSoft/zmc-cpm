@@ -23,6 +23,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 extern uint8_t COLUMNS;
 extern uint8_t LINES;
+extern uint8_t LINES2;
 
 
 #define NUL 0x00
@@ -54,6 +55,9 @@ extern uint8_t LINES;
 
 extern uint8_t DEBUG;
 extern uint8_t DEVEL;
+
+extern uint8_t *cpbufpt;
+extern uint8_t cpbufsz;
 
 enum panel_type{ PAN_NONE = 0, PAN_ACTIVE, PAN_OTHER, PAN_BOTH };
 
