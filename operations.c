@@ -393,85 +393,27 @@ esc_file:
     refresh_ui( PAN_BOTH );
 }
 
-#if 1
 
-// copy a specific file by its name using bdos calls
-static int16_t copy_file_by_name(Panel *src, Panel *dst, const char *name) {
-    int8_t rs, ws;
-    prepare_fcb(name, src, dst);
-    if ( bdos(15, fcb_src) == 255)  // F_OPEN - open file
-        return 255;
-    bdos(19, fcb_dst);              // F_DELETE - delete file
-    if (bdos(22, fcb_dst) == 255)   // F_MAKE - create file
-        return 255;
-    uint16_t total = 0;
-    bdos(26, DEF_DMA); // F_DMAOFF - set DMA address
-    while ( ( rs = bdos(20, fcb_src) ) == 0 ) { // F_READ - read next record
-        if ( ( ws = bdos(21, fcb_dst) ) != 0)   // F_WRITE - write next record
-            break;
-        ++total;
-        if ( DEBUG ) {
-            gotoxy( DEBUG_ROW<<8 | 1 );
-            printf( "copy: %d records", total );
-        }
-    } // while
-    if ( rs > 1) // 0: ok, 1: EOF (ok), FF: = HW error
-        return rs;
-    if ( !ws ) // write ok
-        bdos(16, fcb_dst); // F_CLOSE - close file
-    else
-        bdos(19, fcb_dst); // F_DELETE - delete (partial) file
-    return ws; // 0: ok, 1: dir full, 2: disc full, FF: HW error
-}
+extern uint16_t cpsrcdst( void );
 
-#else
-
-// copy a specific file by its name using c fcntl functions
+// copy a specific file by its name using asm function
 static int copy_file_by_name( Panel *src, Panel *dst, const char *name ) {
-    FILE *fsrc, *fdst;
-    uint8_t buffer[128];
-    int16_t recs;
-    char srcname[ FILENAME_LEN + 2 ]; // Add space for drive char and ':'
-    char dstname[ FILENAME_LEN + 2 ];
-    *srcname = src->drive;
-    *(srcname+1) = ':';
-    *dstname = dst->drive;
-    *(dstname+1) = ':';
-    strcpy( srcname+2, name );
-    strcpy( dstname+2, name );
+    uint16_t rc = 0xFFFF;
+    prepare_fcb( name, src, dst );
+
     if ( DEBUG ) {
         gotoxy( DEBUG_ROW<<8 | 1 );
         ereol();
-        printf( "copy: %s %s", srcname, dstname );
+        printf( "copy: %s %s ", fcb_src+1, fcb_dst+1 );
     }
-    fsrc = fopen( srcname, "rb" );
-    fdst = fopen( dstname, "wb" );
-    if ( fsrc && fdst ) {
-        int total = 0;
-        while( recs = ( fread( buffer, 128, 1, fsrc ) ) ) {
-            total += recs;
-            if ( DEBUG ) {
-                gotoxy( DEBUG_ROW<<8 | 41 );
-                printf( "%d records", total );
-            }
-            fwrite( buffer, 128, recs, fdst );
-        }
-    }
-    else
-        if ( DEBUG ) {
-            gotoxy( DEBUG_ROW<<8 | 61 );
-            printf( "error: %p %p", fsrc, fdst );
-        }
-    fclose( fsrc );
-    fclose( fdst );
-    // this call is neccessary, otherwise the system becomes inconsistent (???)
-    bdos( 13, 0 ); // (DRV_ALLRESET) - Reset discs
-    // TODO: reset drive
+
+    rc = cpsrcdst();
+
+    if ( DEBUG )
+        printf( " status: %u", rc );
 
     return 0;
 }
-
-#endif
 
 
 uint8_t yes_no() {

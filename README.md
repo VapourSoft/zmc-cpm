@@ -1,8 +1,8 @@
 ```
 ======================================================================
-         Z80 MANAGEMENT COMMANDER (ZMC) - Version 1.3-rc
-             "The Crystallized & Global Release"
-           by VCFed team: volney & Ho-Ro & shirsch
+           Z80 MANAGEMENT COMMANDER (ZMC) - Version 1.3-rc
+                 "The Crystallized & Global Release"
+  VCFed team: Volney Torres & Martin Homuth-Rosemann & Steven Hirsch
 ======================================================================
 ```
 
@@ -81,12 +81,13 @@ information and the value and file position of the screen size constants:
 
 ```
 CP/M version: 22
-COLUMNS @ 0x4F44: 80
-LINES @ 0x4F45: 24
-MAX_FILES: 924
+COLUMNS @ 0x59B3: 80
+LINES @ 0x59B4: 24
+COPY BUFFER: 64
+MAX_FILES: 699
 ```
 
-The byte values `_COLUMNS` at `0x4F44` and `_LINES` at `0x4F45` are defined
+The byte values `_COLUMNS` at `0x59B3` and `_LINES` at `0x59B4` are defined
 in `SYSENV.ASM` and can be adjusted to your requirements with a hex editor.
 
 Calling as `ZMC --KEY` supports the function key handling, the program simply
@@ -119,10 +120,10 @@ CP/M version 22: function key test - exit with <ESC><ESC>
 ZMC is a tribute to the legendary Norton Commander and Peter Norton.
 
 CONTRIBUTORS:
-- Volney Torres (lu1pvt): Original creator, UI design, and panel logic.
-- Martin Homuth-Rosemann (Ho-Ro): Global refactoring, CP/M Plus support,
+- Volney Torres: Original creator, UI design, and panel logic.
+- Martin Homuth-Rosemann: Global refactoring, CP/M Plus support,
   and core algorithm optimization.
-- shirsch: Converting Z3 system libraries to z88dk format
+- Steven Hirsch: Converting Z3 system libraries to z88dk format
   and implementing the VLIB functions.
 
 (c) 2025-2026 - Open Project for the CP/M Community, [VCFed](https://forum.vcfed.org/index.php?threads/1256243/), and [VzEkC](https://forum.classic-computing.de/forum/index.php?thread/38945).
