@@ -87,7 +87,7 @@
 Z3ENV:
     defm    "Z3ENV"
     defb    1
-ENVPTR:
+ENVPTR:                ; at file address 0109h
     defb    0,0
 start:
     ld	a,$7F		; 01111111 into accumulator

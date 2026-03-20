@@ -3,7 +3,7 @@ ENVSRC = sysenv.asm vt100.asm
 CRT = z3_crt0.asm
 HEADER = zmc.h internal_env.h vlib.h
 ZMC = zmc.com
-TCAP = vt100.tcp vt100_ul.tcp adm-3a.tcp heath19.tcp
+TCAP = vt100.z3t vt100_ul.z3t adm-3a.z3t heath19.z3t
 ENV = vt100.env vt100_ul.env adm-3a.env heath19.env
 
 
@@ -27,16 +27,16 @@ $(ZMC): $(SOURCE) $(HEADER) $(ENVSRC) $(CRT)
 	-o $@ -m --list
 
 # the TCAP files
-adm-3a.tcp: adm-3a.asm
+adm-3a.z3t: adm-3a.asm
 	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
-heath19.tcp: heath19.asm
+heath19.z3t: heath19.asm
 	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
-vt100.tcp: vt100.asm
+vt100.z3t: vt100.asm
 	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
-vt100_ul.tcp: vt100_ul.asm
+vt100_ul.z3t: vt100_ul.asm
 	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
 
@@ -45,16 +45,16 @@ sysenv.bin: sysenv.asm
 	zcc +z80 -O3 --no-crt -vn -Wall $< -o $@ -m --list
 
 # the environment and TCAP files
-adm-3a.env: sysenv.bin adm-3a.tcp
+adm-3a.env: sysenv.bin adm-3a.z3t
 	cat $^ > $@
 
-heath19.env: sysenv.bin heath19.tcp
+heath19.env: sysenv.bin heath19.z3t
 	cat $^ > $@
 
-vt100.env: sysenv.bin vt100.tcp
+vt100.env: sysenv.bin vt100.z3t
 	cat $^ > $@
 
-vt100_ul.env: sysenv.bin vt100_ul.tcp
+vt100_ul.env: sysenv.bin vt100_ul.z3t
 	cat $^ > $@
 
 

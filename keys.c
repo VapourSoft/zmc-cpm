@@ -22,8 +22,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include <stdint.h>
 #include <stdio.h>
-#include "zmc.h"
 
+#include "zmc.h"
 
 // handle function keys starting with <ESC>
 uint8_t parse_function_keys( uint8_t k ) {
@@ -58,8 +58,8 @@ uint8_t parse_function_keys( uint8_t k ) {
             if ( k == '~' ) { // <INSERT> = "<ESC>[2~"
                 select_file();
             } else if ( k == '1' && wait_key_hw() == '~' ) { // F10 = "<ESC>[21~"
-                loop = 0; // ready, leave loop
-            } else if ( k >= '0' && k <= '9') {
+                loop = 0;                                    // ready, leave loop
+            } else if ( k >= '0' && k <= '9' ) {
                 wait_key_hw(); // remove '~'
             }
         }
@@ -69,39 +69,30 @@ uint8_t parse_function_keys( uint8_t k ) {
         k = wait_key_hw();
         if ( k == 'P' ) { // F1 = "<ESC>OP" HELP
             help();
-        }
-        else if ( k == 'R' ) { // F3 = "<ESC>OR" VIEW
+        } else if ( k == 'R' ) { // F3 = "<ESC>OR" VIEW
             view_file();
-        }
-        else if ( k == 'S' ) { // F4 = "<ESC>OS" DUMP
+        } else if ( k == 'S' ) { // F4 = "<ESC>OS" DUMP
             dump_file();
         }
         // here comes the shirsch style extrapolation of F5, F8, F10
         else if ( k == 'T' ) { // F5 = "<ESC>OT" DUMP
             copy_cmd();
-        }
-        else if ( k == 'W' ) { // F8 = "<ESC>OW" DUMP
+        } else if ( k == 'W' ) { // F8 = "<ESC>OW" DUMP
             delete_cmd();
-        }
-        else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
-            loop = 0; // ready, leave loop
+        } else if ( k == 'Y' ) { // F10 = "<ESC>OY" DUMP
+            loop = 0;            // ready, leave loop
         }
     } // now the VT52 cursor keys and F1, F3, F4
     else if ( k == 'A' ) { // "<ESC>A" LINE_UP
         line_up();
-    }
-    else if ( k == 'B' ) { // "<ESC>B" LINE_DOWN
+    } else if ( k == 'B' ) { // "<ESC>B" LINE_DOWN
         line_down();
-    }
-    else if ( k == 'P' ) { // "<ESC>P" F1
+    } else if ( k == 'P' ) { // "<ESC>P" F1
         help();
-    }
-    else if ( k == 'R' ) { // "<ESC>R" F3
+    } else if ( k == 'R' ) { // "<ESC>R" F3
         view_file();
-    }
-    else if ( k == 'S' ) { // "<ESC>R" F4
+    } else if ( k == 'S' ) { // "<ESC>R" F4
         dump_file();
     }
     return loop;
 }
-

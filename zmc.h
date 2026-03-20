@@ -19,36 +19,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define ZMC_H
 
 #include <stdint.h>
+
 #include "vlib.h"
 
 extern uint8_t COLUMNS;
 extern uint8_t LINES;
 extern uint8_t LINES2;
 
-
-#define NUL 0x00
-#define BS  0x08
-#define TAB 0x09
-#define LF  0x0A
-#define CR  0x0D
-#define ESC 0x1B
-#define SPC 0x20
-#define RUB 0x7F
-
-
 #define FILENAME_LEN 13
-#define SCREEN_HEIGHT (LINES)
-#define PANEL_WIDTH (COLUMNS/2)
-#define PANEL_HEIGHT (SCREEN_HEIGHT - 2)
-#define VISIBLE_ROWS (PANEL_HEIGHT - 2)
-#define DEBUG_ROW (SCREEN_HEIGHT+1)
-
+#define SCREEN_HEIGHT ( LINES )
+#define PANEL_WIDTH ( COLUMNS / 2 )
+#define PANEL_HEIGHT ( SCREEN_HEIGHT - 2 )
+#define VISIBLE_ROWS ( PANEL_HEIGHT - 2 )
+#define STATUS_ROW ( PANEL_HEIGHT + 1 )
+#define DEBUG_ROW ( SCREEN_HEIGHT + 1 )
 
 #define NUL 0x00
-#define BS  0x08
+#define BS 0x08
 #define TAB 0x09
-#define LF  0x0A
-#define CR  0x0D
+#define LF 0x0A
+#define CR 0x0D
 #define ESC 0x1B
 #define SPC 0x20
 #define RUB 0x7F
@@ -59,17 +49,18 @@ extern uint8_t DEVEL;
 extern uint8_t *cpbufpt;
 extern uint8_t cpbufsz;
 
-enum panel_type{ PAN_NONE = 0, PAN_ACTIVE, PAN_OTHER, PAN_BOTH };
+enum panel_type { PAN_NONE = 0, PAN_ACTIVE, PAN_OTHER, PAN_BOTH };
+
 
 /* CP/M directory entry (32 bytes) */
 typedef struct cpm_dir {
     uint8_t user;
-    uint8_t name[8]; // F1..F8, hi bit can be user flag
-    uint8_t type[3];  // T1..T3, hi bits are system flags
+    uint8_t name[ 8 ]; // F1..F8, hi bit can be user flag
+    uint8_t type[ 3 ]; // T1..T3, hi bits are system flags
     uint8_t ex;
     uint8_t s1, s2;
     uint8_t rc;
-    uint8_t map[16];
+    uint8_t map[ 16 ];
 } cpm_dir;
 
 
@@ -80,7 +71,7 @@ typedef struct { // CP/M Plus date time format
 } datetime;
 
 
-typedef struct { // directory date/time entry
+typedef struct {       // directory date/time entry
     datetime crea_acc; // create or access date/time
     datetime update;   // update date/time
     uint8_t pw_mode;   // not used
@@ -88,10 +79,10 @@ typedef struct { // directory date/time entry
 } date_time_info;
 
 
-typedef struct { // CP/M Plus directory info for 3 files
-    uint8_t type; // '!'
-    date_time_info dt[3]; // 3x10 byte info
-    uint8_t dummy; // fill to 32 byte
+typedef struct {            // CP/M Plus directory info for 3 files
+    uint8_t type;           // '!'
+    date_time_info dt[ 3 ]; // 3x10 byte info
+    uint8_t dummy;          // fill to 32 byte
 } date_time_dir;
 
 
@@ -102,23 +93,25 @@ typedef struct { // CP/M Plus directory info for 3 files
 
 #define DEF_DMA 0x80
 
+
 typedef struct {
-    char cpmname[FILENAME_LEN]; // "FILENAME.EXT\0"
-    uint8_t attrib; // sel,0,0,0,0,A,S,R
-    uint16_t extent; // extent number, becomes total number of records
-    uint8_t rc; // number of records
-    uint16_t date; // days since 31.12.1977, becomes year
+    char cpmname[ FILENAME_LEN ]; // "FILENAME.EXT\0"
+    uint8_t attrib;               // sel,0,0,0,0,A,S,R
+    uint16_t extent;              // extent number, becomes total number of records
+    uint8_t rc;                   // number of records
+    uint16_t date;                // days since 31.12.1977, becomes year
     uint8_t month;
     uint8_t day;
     uint8_t hour;
     uint8_t minute;
 } FileEntry;
 
+
 typedef struct {
     FileEntry *files;
     int16_t num_files;
     int16_t current_idx;
-    int16_t scroll_offset;
+    int16_t top_idx;
     char drive;
     uint8_t show_date;
 } Panel;
@@ -140,40 +133,43 @@ extern uint8_t fcb_dst[];
 extern uint16_t MAX_FILES;
 extern AppState App;
 
+
+// main.c
+void help( void );
+extern uint8_t ( *wait_key_hw )( void );
+
+// panel.c
+void draw_frame( Panel *p );
+void fill_panel( Panel *p );
+void draw_file_line( Panel *p, int16_t file_idx );
+void draw_header( Panel *p );
+void draw_footer( void );
+void show_prompt( void );
+void refresh_ui( uint8_t which_panel );
+void change_focus( void );
+void select_file( void );
+uint8_t is_on_panel( int16_t idx );
 void line_up( void );
 void line_down( void );
 void page_up( void );
 void page_down( void );
 void first_file( void );
 void last_file( void );
-void copy_cmd( void );
-void delete_cmd( void );
-void select_file( void );
-void select( void );
-void help( void );
-uint8_t parse_function_keys( uint8_t key );
 
-void print_cpm_attrib( uint8_t *ca );
-void draw_header(Panel *p);
-void draw_frame(Panel *p);
-void fill_panel(Panel *p);
-void draw_footer(void);
-void load_directory(Panel *p);
-// void copy_panel( Panel *src, Panel *dst );
-extern uint8_t (*wait_key_hw)(void);
-// int delete_file();
-// int copy_active_file(Panel *src, Panel *dst);
-void draw_file_line(Panel *p, int16_t file_idx);
+// operations.c
+void load_directory( Panel *p );
 void view_file();
 void dump_file();
-// int copy_file_by_index(Panel *src, Panel *dst, int16_t idx);
-void exec_multi_copy(Panel *src, Panel *dst);
-void exec_multi_delete(Panel *p);
-void show_prompt( void );
-void refresh_ui(uint8_t which_panel);
-void other_panel( void );
+void copy_cmd( void );
+void delete_cmd( void );
 void change_drive( char k );
-uint8_t is_on_panel( int16_t idx );
+
+// keys.c
+uint8_t parse_function_keys( uint8_t key );
+
+// cpsrcdst.asm
+uint16_t cpsrcdst( void );
+
 
 /* https://www.seasip.info/Cpm/format22.html
  *
