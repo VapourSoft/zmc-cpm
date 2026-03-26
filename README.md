@@ -66,7 +66,7 @@ i.e.
 - EXIT (or QUIT).
 
 ## TECHNICAL SPECIFICATIONS
-- Compiler: z88dk (ZCC) with -O3 optimization using
+- Compiler: z88dk (ZCC) native/in Docker with -O3 optimization using
   - sccz80 assembler (defaults to __smallc linkage)
   - classic library
   - cpm target personality
