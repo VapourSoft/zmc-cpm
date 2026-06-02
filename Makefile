@@ -6,6 +6,10 @@ ZMC = zmc.com
 TCAP = vt100.z3t vt100_ul.z3t adm-3a.z3t heath19.z3t
 ENV = vt100.env vt100_ul.env adm-3a.env heath19.env
 
+ZCC := $(shell command -v zcc 2>/dev/null)
+ifndef ZCC
+ZCC := docker run --rm -v $(CURDIR):/src -w /src z88dk/z88dk zcc
+endif
 
 .PHONY: all
 all: $(ZMC) $(TCAP) $(ENV)
@@ -19,7 +23,7 @@ all: $(ZMC) $(TCAP) $(ENV)
 
 # the complete build is more compact (~ -500 byte) than the modular build
 $(ZMC): $(SOURCE) $(HEADER) $(ENVSRC) $(CRT)
-	zcc +cpm -O3 -crt0=z3_crt0.asm -vn -Wall \
+	$(ZCC) +cpm -O3 -crt0=z3_crt0.asm -vn -Wall \
 	-pragma-output:noprotectmsdos \
 	-pragma-output:noredir \
 	-DAMALLOC -pragma-define:CRT_STACK_SIZE=512 \

@@ -8,6 +8,7 @@
 *.lst
 *.bin
 *.COM
+*.com
 .DS_Store
 ps_kill
 sniffer.c
@@ -18,3 +19,4 @@ sniffer.c
 *.orig
 *.work
 sysenv_*.asm
+/.claude/
