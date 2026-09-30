@@ -39,6 +39,13 @@ fork. Keypad 8/2 move up/down and keypad 4/6 switch panels. The paired physical
 function keys map F1 to Help, F3 to View, F4 to Dump, F5 to Copy, and F8 to
 Delete.
 
+### Downloadable releases
+To publish a binary, open **Actions → Release ZMC for Amstrad PCW → Run workflow**
+on the `main` branch and enter a new version tag such as `v1.3.0-pcw.1`.
+The workflow builds the production `zmc.com` and attaches it to a GitHub Release
+under that tag. Download it from the repository's **Releases** page. Existing
+tags cannot be reused; increment the version for each release.
+
 ## KEYMAP
 |  KEY                 | Function                          |
 |----------------------|-----------------------------------|
