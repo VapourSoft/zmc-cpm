@@ -1,0 +1,68 @@
+name: Release ZMC for Amstrad PCW
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'New release tag (for example, v1.3.0-pcw.1)'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: z88dk/z88dk
+    steps:
+      - name: Validate release request
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main || { echo 'Run releases from main only.' >&2; exit 1; }
+          printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(\.[0-9]+)?)?$' || { echo 'Use a version tag such as v1.3.0-pcw.1.' >&2; exit 1; }
+      - uses: actions/checkout@v4
+      - name: Build production binary
+        run: |
+          make
+          test -s zmc.com
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zmc-pcw
+          path: zmc.com
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure tag does not already exist
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG"; then
+            echo "Tag $RELEASE_TAG already exists; choose a new version." >&2
+            exit 1
+          else
+            status=$?
+            test "$status" -eq 2 || exit "$status"
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: zmc-pcw
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test -s zmc.com
+          gh release create "$RELEASE_TAG" zmc.com \
+            --target "$GITHUB_SHA" \
+            --title "ZMC for Amstrad PCW $RELEASE_TAG" \
+            --notes 'Native Amstrad PCW CP/M Plus executable. Download zmc.com, copy it to a CP/M disk, and run ZMC.'
