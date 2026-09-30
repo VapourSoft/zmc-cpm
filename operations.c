@@ -24,6 +24,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "zmc.h"
 
+#define CPM_SRDS 37 // BDOS function 37 - selectively reset disc drives (not in z88dk's cpm.h)
+
 
 uint8_t fcb_src[ 36 ];
 uint8_t fcb_dst[ 36 ];
@@ -163,7 +165,7 @@ void load_directory( Panel *p ) {
     bdos( CPM_SDMA, DEF_DMA );
 
     if ( p->drive == '@' ) // '@' -> select current drive
-        p->drive = bdos( CPM_IDRV, fcb_src ) + 'A';
+        p->drive = bdos( CPM_IDRV, (int)(uintptr_t)fcb_src ) + 'A';
 
     /* 1. change drive to fetch the complete directory */
     result = bdos( CPM_LGIN, p->drive - 'A' );
@@ -177,7 +179,7 @@ void load_directory( Panel *p ) {
     memset( fcb_src, 0, sizeof( fcb_src ) );
     memset( &fcb_src[ 1 ], '?', 11 + 4 ); // name, type, EXTENT,S1,S2,RC: "????????.???"????
     /* 3. Find 1st file */
-    result = bdos( CPM_FFST, fcb_src ); // BDOS function 17 (F_SFIRST) - search for first
+    result = bdos( CPM_FFST, (int)(uintptr_t)fcb_src ); // BDOS function 17 (F_SFIRST) - search for first
 
     while ( result != 255 && count < MAX_FILES ) { // OK: result = 0..3
         /* record is in default DMA (0x80) */
@@ -230,7 +232,7 @@ void load_directory( Panel *p ) {
         }
 
         /* find all other files */
-        result = bdos( CPM_FNXT, fcb_src ); // BDOS function 18 (F_SNEXT) - search for next
+        result = bdos( CPM_FNXT, (int)(uintptr_t)fcb_src ); // BDOS function 18 (F_SNEXT) - search for next
     }
 
     // sort file names and extents,
@@ -283,7 +285,7 @@ static int8_t delete_active_file() {
     if ( p->num_files == 0 )
         return -1;
     prepare_fcb( p->files[ p->current_idx ].cpmname, p, NULL );
-    return bdos( CPM_DEL, fcb_src ); // BDOS function 19 (F_DELETE) - delete file
+    return bdos( CPM_DEL, (int)(uintptr_t)fcb_src ); // BDOS function 19 (F_DELETE) - delete file
 }
 
 
@@ -310,8 +312,8 @@ void view_file() {
 
     prepare_fcb( name, p, NULL );
     // open and read
-    if ( bdos( CPM_OPN, fcb_src ) != 255 ) {       // BDOS function 15 - (F_OPEN) - Open file
-        while ( bdos( CPM_READ, fcb_src ) == 0 ) { // BDOS function 20 (F_READ) - read next record
+    if ( bdos( CPM_OPN, (int)(uintptr_t)fcb_src ) != 255 ) {       // BDOS function 15 - (F_OPEN) - Open file
+        while ( bdos( CPM_READ, (int)(uintptr_t)fcb_src ) == 0 ) { // BDOS function 20 (F_READ) - read next record
             for ( i = 0; i < 128; i++ ) {
                 char c = *( (char *)( DEF_DMA + i ) );
                 if ( c == 0x1A )
@@ -363,8 +365,8 @@ void dump_file() {
 
     prepare_fcb( p->files[ p->current_idx ].cpmname, p, NULL );
 
-    if ( bdos( CPM_OPN, fcb_src ) != 255 ) {       // BDOS function 15 - (F_OPEN) - Open file
-        while ( bdos( CPM_READ, fcb_src ) == 0 ) { // BDOS function 20 (F_READ) - read next record
+    if ( bdos( CPM_OPN, (int)(uintptr_t)fcb_src ) != 255 ) {       // BDOS function 15 - (F_OPEN) - Open file
+        while ( bdos( CPM_READ, (int)(uintptr_t)fcb_src ) == 0 ) { // BDOS function 20 (F_READ) - read next record
             for ( i = 0; i < 128; i += 16 ) {
                 printf( "%04X  ", (unsigned int)address );
                 for ( j = 0; j < 16; j++ ) {
@@ -505,7 +507,7 @@ static void exec_multi_delete( Panel *p ) {
         gotoxy( STATUS_ROW << 8 | 1 );
         ereol();
         printf( " Deleting: %s... ", p->files[ p->current_idx ].cpmname );
-        delete_active_file( p );
+        delete_active_file();
     } else {
         // batch deletion
         for ( i = 0; i < p->num_files; i++ ) {
@@ -515,7 +517,7 @@ static void exec_multi_delete( Panel *p ) {
                 ereol();
                 printf( " [%d/%d] Deleting: %s ", done, marked, p->files[ i ].cpmname );
                 prepare_fcb( p->files[ i ].cpmname, p, NULL );
-                bdos( CPM_DEL, fcb_src ); // BDOS function 19 (F_DELETE) - delete file
+                bdos( CPM_DEL, (int)(uintptr_t)fcb_src ); // BDOS function 19 (F_DELETE) - delete file
                 p->files[ i ].attrib &= ~B_SEL;
             }
         }

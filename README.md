@@ -1,3 +1,9 @@
+> **PCW-only fork:** this branch builds a native Amstrad PCW CP/M Plus
+> executable. A PCW terminal profile and physical keyboard handling are
+> compiled in; run `ZMC` without terminal or keyboard options. Screen geometry
+> comes from the CP/M Plus SCB, with the embedded 90x32 values as fallback.
+> Fork architecture and upstream merge guidance are in `PCW-FORK.md`.
+
 ```
 ======================================================================
            Z80 MANAGEMENT COMMANDER (ZMC) - Version 1.3-rc
@@ -26,13 +32,12 @@ global compatibility.
 - Z3 DSLIB & SYSLIB ready: Z80 optimised functions for directory access can replace C code.
 - Loadable environment file for non-Z3 systems.
 
-## TERMINAL ADAPTION
-By calling the program with `ZMC --TCAP [TCAPFILE]`, you can load the a 128 byte TCAP file
-with the definitions of the terminal functions.
-This allows the program to be adapted to different types of terminal. The project
-provides environment files `vt100.tcp` (this is the same as the ZMC default setting),
-Lear Siegler ADM-3A `adm-3a.tcp` (untested), Heath/Zenith19 `heath19.tcp` (untested),
-and the test file `vt100_ul.tcp`, the VT100 setting with underline instead of invers.
+## AMSTRAD PCW
+Build with `make`, copy `zmc.com` to a CP/M disk, and run `ZMC`. The native PCW
+terminal and physical keyboard are the only supported runtime platform in this
+fork. Keypad 8/2 move up/down and keypad 4/6 switch panels. The paired physical
+function keys map F1 to Help, F3 to View, F4 to Dump, F5 to Copy, and F8 to
+Delete.
 
 ## KEYMAP
 |  KEY                 | Function                          |
@@ -71,7 +76,7 @@ i.e.
   - classic library
   - cpm target personality
 - `ZMC.COM`requires a Z80 or compatible processor.
-- Default terminal: ANSI/VT100 (Full support for real hardware and emulators).
+- Terminal: native Amstrad PCW CP/M Plus console (90x32 fallback geometry).
 - Memory: Dynamic Heap management to support large directories.
 - CP/M3: Program adapts the screen size automatically from SCB info.
 

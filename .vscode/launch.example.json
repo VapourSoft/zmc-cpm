@@ -1,0 +1,64 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "dezog",
+            "request": "launch",
+            "name": "DeZog ZMC (current artifacts, No Build)",
+            "remoteType": "amalia",
+            "mame": {
+                "hostname": "YOUR-AMALIA-IP",
+                "port": 1234
+            },
+            "z88dkv2": [
+                {
+                    "path": "${workspaceFolder}/.tmp/dezog/*.c.lis",
+                    "srcDirs": [
+                        "./"
+                    ],
+                    "mapFile": ".tmp/dezog/zmc.map",
+                    "excludeFiles": []
+                },
+                {
+                    "path": "${workspaceFolder}/.tmp/dezog/*.asm.lis",
+                    "srcDirs": [
+                        "./"
+                    ],
+                    "mapFile": ".tmp/dezog/zmc.map",
+                    "excludeFiles": []
+                }
+            ],
+            "topOfStack": "__register_sp",
+            "startAutomatically": false,
+            "history": {
+                "reverseDebugInstructionCount": 0,
+                "codeCoverageEnabled": false
+            },
+            "disassemblerArgs": {
+                "numberOfLines": 20
+            },
+            "smartDisassemblerArgs": {
+                "lowerCase": false
+            },
+            "rootFolder": "${workspaceFolder}",
+            "loadObjs": [
+                {
+                    "path": "${workspaceFolder}/.tmp/dezog/zmc.com",
+                    "start": "0x0100"
+                }
+            ],
+            "execAddress": "0x0100",
+            "smallValuesMaximum": 513,
+            "tmpDir": ".tmp"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "DeZog ZMC (build)",
+            "preLaunchTask": "Build ZMC (Docker)",
+            "configurations": [
+                "DeZog ZMC (current artifacts, No Build)"
+            ]
+        }
+    ]
+}
