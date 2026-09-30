@@ -28,7 +28,7 @@
                     "excludeFiles": []
                 }
             ],
-            "topOfStack": "__register_sp",
+            "topOfStack": "use value from memory 0x0006 as this program uses it as top of stack",
             "startAutomatically": false,
             "history": {
                 "reverseDebugInstructionCount": 0,
