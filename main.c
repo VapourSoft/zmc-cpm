@@ -33,6 +33,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <unistd.h>
 
 #include "internal_env.h"
+#include "pcw_platform.h"
 #include "zmc.h"
 
 // the status of both panels
@@ -58,20 +59,20 @@ uint8_t *cpbufpt = NULL;
 uint8_t cpbufsz = NUMBUF;
 
 
-int wait_key_bios( void ) {
+uint8_t wait_key_bios( void ) {
     // use raw BIOS CONIO (fkt 3) to ignore XON/XOFF (^Q and ^S are used as fkt keys)
     return bios( BIOS_CONIN, 0, 0 ); // function, BC, DE, returns A
 }
 
 
-int wait_key_bdos( void ) {
+uint8_t wait_key_bdos( void ) {
     // use BDOS RAWIO to ignore XON/XOFF (^Q and ^S are used as fkt keys)
     return bdos( 6, 0xFD ); // C_RAWIO, wait for char, returns A
 }
 
 
 // function pointer, default is BIOS, can be switched to BDOS for CP/M3
-int ( *wait_key_hw )( void ) = &wait_key_bios;
+uint8_t ( *wait_key_hw )( void ) = &wait_key_bios;
 
 
 void help() {
@@ -162,11 +163,13 @@ int main( int argc, char **argv ) {
         bdos( 109, 0x0A );                      // C_MODE, ignore ^C and ^S
         wait_key_hw = &wait_key_bdos;           // use BDOS RAWIO instead of BIOS CONIO
         uint8_t scbpb[ 4 ] = { 0x1A, 0, 0, 0 }; // SCB parameter block, get col - 1
-        COLUMNS = bdos( 49, scbpb ) + 1;
+        COLUMNS = bdos( 49, (int)(uintptr_t)scbpb ) + 1;
         scbpb[ 0 ] = 0x1C; // lines - 1
-        LINES = bdos( 49, scbpb ) + 1;
+        LINES = bdos( 49, (int)(uintptr_t)scbpb ) + 1;
         LINES2 = LINES - 2;
     }
+    if ( !pcw_platform_init( cpmversion ) )
+        return 1;
 
     uint8_t **envptr = (void *)0x109;
 
@@ -180,7 +183,7 @@ int main( int argc, char **argv ) {
     MAX_FILES = largest / sizeof( FileEntry ) / 2 - 1;
 
     // Set current drive for both panels
-    char drive_left = bdos( 25, fcb_src ) + 'A'; // get current drive
+    char drive_left = bdos( 25, (int)(uintptr_t)fcb_src ) + 'A'; // get current drive
     char drive_right = drive_left;
 
     // cmd line argument "--config" shows address of screen size constants
@@ -380,7 +383,8 @@ int main( int argc, char **argv ) {
         k = wait_key_hw();
         curoff();
         // printable char go to the prompt line, BS/RUB deletes, CR executes
-        if ( ( k > SPC && k < RUB ) || ( k == SPC && *cmdline ) ) {
+        if ( pcw_dispatch_key( k ) ) {
+        } else if ( ( k > SPC && k < RUB ) || ( k == SPC && *cmdline ) ) {
             if ( cp < cmdline + CMDLINELEN ) {
                 *cp++ = toupper( k );
                 *cp = '\0';

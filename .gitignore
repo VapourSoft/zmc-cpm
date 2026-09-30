@@ -19,3 +19,5 @@ sniffer.c
 *.work
 sysenv_*.asm
 /.claude/
+/.tmp/
+.vscode/launch.json
